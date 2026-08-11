@@ -2,9 +2,10 @@ brain_node:
   ros__parameters:
     game:
       team_id: 29 # consistant with GameControl
-      player_id: 2 # 1 | 2 | 3 | 4 | 5
+      player_id: 1 # 1 | 2 | 3 | 4 | 5
       field_type: "robo_league" # adult_size | kid_size | robo_league
-      player_role: "striker" # striker | goal_keeper
+        #player_role: "striker" # striker | goal_keeper
+      player_role: "goal_keeper" # striker | goal_keeper
       initial_goalkeeper_id: 1 # Normal-play fallback before valid GameController data; 0 means unassigned in a penalty shootout
       player_start_pos: "right" # right | left; used for entry-field localization
       treat_person_as_robot: false # Debug option. Keep false during official matches.
@@ -90,7 +91,7 @@ brain_node:
         execution_timeout_ms: 10000.0 # Team-wide timeout from free-kick release to completion
         plan_select_ms: 250.0 # Wait for several tactical packets after STOP before freezing the authoritative plan
       cooperation:
-        enable_role_switch: true 
+        enable_role_switch: false 
         ball_control_cost_threshold: 5.0 # Maximum cost for a goalkeeper to claim a dangerous ball
         goalie_claim_max_ball_range: 1.5 # Goalkeeper claims only nearby, locally observed balls
         goalie_claim_extra_depth: 1.0 # Claim depth beyond the own penalty area
@@ -195,8 +196,8 @@ brain_node:
       team_broadcast_rate_hz: 20.0 # Teammate state rate; 20 Hz is one packet every 50 ms, valid range 0.1-20 Hz
 
     rerunLog:
-      enable_tcp: false # Stream logs over the network
-      server_ip: "192.168.10.110:9876" # Address of the machine running Rerun Viewer
+      enable_tcp: true # Stream logs over the network
+      server_ip: "192.168.10.10:9876" # Address of the machine running Rerun Viewer
       enable_file: true # Write logs locally
       log_dir: "/home/booster/Workspace/rrlog" # Local directory for timestamped log files
       max_log_file_mins: 5.0 # Rotate local logs after this duration to avoid oversized files
@@ -257,7 +258,8 @@ brain_node:
     debug:
       log_ball_pos: false # Write ball positions to ballpos.log for debugging
     
-    game_control_ip: "172.168.208.2"  # Set to the GameController IP address
+    #default: 172.168.208.2
+    game_control_ip: "192.168.0.203"  # Set to the GameController IP address
 
     # for fun
     sound:

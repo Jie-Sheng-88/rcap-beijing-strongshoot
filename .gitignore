@@ -1,0 +1,7 @@
+/build
+/install
+/log
+/scripts/build
+/scripts/install
+/scripts/log
+*.log*
