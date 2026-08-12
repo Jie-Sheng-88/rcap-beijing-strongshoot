@@ -37,6 +37,11 @@ using std::placeholders::_1;
 
 namespace {
 
+// Tolerance for a ball sitting on or just behind the own goal line. Localization
+// noise puts a ball on the line slightly outside it, and the goalkeeper must
+// still treat that ball as its own.
+constexpr double GOALIE_CLAIM_BEHIND_GOALLINE = 0.25;
+
 OdomDiagnosticPose toDiagnosticPose(const Pose2D &pose)
 {
     return {pose.x, pose.y, pose.theta};
@@ -589,9 +594,10 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.shoot.ymax", 0.5);
     declare_parameter<bool>("strategy.cooperation.enable_role_switch", true);
     declare_parameter<double>("strategy.cooperation.ball_control_cost_threshold", 10.0);
-    declare_parameter<double>("strategy.cooperation.goalie_claim_max_ball_range", 1.5);
+    declare_parameter<double>("strategy.cooperation.goalie_claim_max_ball_range", 5.5);
     declare_parameter<double>("strategy.cooperation.goalie_claim_extra_depth", 1.0);
     declare_parameter<double>("strategy.cooperation.goalie_claim_lateral_margin", 0.5);
+    declare_parameter<double>("strategy.cooperation.goalie_box_priority_bonus", 5.0);
     declare_parameter<double>("strategy.cooperation.goalie_restore_stable_ms", 500.0);
     declare_parameter<double>("strategy.cooperation.tactical_packet_timeout_ms", 600.0);
     declare_parameter<double>("strategy.cooperation.leader_switch_cost_margin", 0.75);
@@ -3808,6 +3814,34 @@ void Brain::updateCostToKick(
         log_(format("ball_out cost: %.1f", 20.0));
     }
 
+    // Goalkeeper priority inside its own penalty area. Ball ownership is decided
+    // by cost, and cost is dominated by ball range, so a striker one metre closer
+    // would otherwise take the ball the keeper is standing right in front of and
+    // leave GoalieDecide stuck on "retreat". Applied here rather than locally in
+    // GoalieDecide so teammates receive the same cost over UDP and leader
+    // election stays consistent across robots. The bonus uses the strict penalty
+    // area, while canGoalkeeperClaimBall extends one extra depth beyond it: the
+    // keeper keeps chasing a ball it has already committed to, but only claims
+    // priority over a striker for a ball genuinely inside its own box.
+    if (tree->getEntry<string>("player_role") == "goal_keeper") {
+        const auto &fd = config->fieldDimensions;
+        const double ownGoalX = -fd.length / 2.0;
+        const bool ballInOwnBox =
+            std::isfinite(data->ball.posToField.x) &&
+            std::isfinite(data->ball.posToField.y) &&
+            data->ball.posToField.x >= ownGoalX - GOALIE_CLAIM_BEHIND_GOALLINE &&
+            data->ball.posToField.x <= ownGoalX + fd.penaltyAreaLength &&
+            std::fabs(data->ball.posToField.y) <= fd.penaltyAreaWidth / 2.0;
+        if (ballInOwnBox) {
+            const double bonus = std::max(
+                0.0,
+                get_parameter("strategy.cooperation.goalie_box_priority_bonus")
+                    .as_double());
+            cost = std::max(0.0, cost - bonus);
+            log_(format("goalie box priority bonus: -%.1f", bonus));
+        }
+    }
+
     if (!std::isfinite(cost)) {
         cost = 1e6;
         log_("non-finite cost input; using safe fallback");
@@ -4635,7 +4669,7 @@ bool Brain::canGoalkeeperClaimBall(
 
     return ballDetected &&
            std::isfinite(ballRange) && ballRange >= 0.0 && ballRange <= maxRange &&
-           std::isfinite(ballX) && ballX >= ownGoalX - 0.25 &&
+           std::isfinite(ballX) && ballX >= ownGoalX - GOALIE_CLAIM_BEHIND_GOALLINE &&
            ballX <= maxBallX &&
            std::isfinite(ballY) && std::fabs(ballY) <= maxBallY &&
            std::isfinite(cost) && cost <= maxCost;
