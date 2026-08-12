@@ -493,6 +493,7 @@ public:
     static PortsList providedPorts() { return { InputPort<double>("msecs_interval", 1000, "") }; }
 private:
     Brain *brain;
+    bool _localizingAnnounced = false;
 };
 
 class SelfLocateLocal : public SyncActionNode {

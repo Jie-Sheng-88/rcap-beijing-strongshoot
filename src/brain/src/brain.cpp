@@ -1171,6 +1171,7 @@ void Brain::tick()
     // logObstacleDistance(); // Expensive; enable only when needed.
     logLags();
     statusReport();
+    speakStateAndDecision();
     logStatusToConsole();
     playSoundForFun();
     updateLogFile();
@@ -8480,6 +8481,48 @@ void Brain::statusReport() {
     if (lastReport != report) {
         speak(report);
         lastReport = report;
+    }
+}
+
+void Brain::speakStateAndDecision() {
+    if (!config->soundEnable || config->soundPack != "espeak") return;
+
+    // Game-state transitions.
+    static string lastGameState;
+    string gameState = tree->getEntry<string>("gc_game_state");
+    if (gameState != lastGameState && !gameState.empty()) {
+        speak("game state " + gameState);
+        lastGameState = gameState;
+    }
+
+    // Set-play sub-state changes (e.g. kickoff / free-kick / penalty).
+    static string lastSubState;
+    string subState = tree->getEntry<string>("gc_game_sub_state");
+    if (subState != lastSubState && !subState.empty()) {
+        speak("sub state " + subState);
+        lastSubState = subState;
+    }
+
+    // Decision changes.
+    static string lastDecision;
+    string decision = tree->getEntry<string>("decision");
+    if (decision != lastDecision && !decision.empty()) {
+        speak(decision, true);
+        lastDecision = decision;
+    }
+
+    // Score and leadership changes.
+    static string lastScore;
+    string score = format("%d to %d", data->score, data->oppoScore);
+    if (score != lastScore && config->numOfPlayers > 1) {
+        speak("score " + score);
+        lastScore = score;
+    }
+
+    static bool lastLead = false;
+    if (data->tmImLead != lastLead) {
+        speak(string("lead ") + (data->tmImLead ? "on" : "off"));
+        lastLead = data->tmImLead;
     }
 }
 

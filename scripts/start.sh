@@ -7,7 +7,8 @@ VISION_CONFIG_PATH="${WORKSPACE_ROOT}/src/vision/config"
 
 echo "[STOP EXISTING NODES (IF ANY), TO AVOID CONFILICT]"
 sudo killall -9 booster-video-stream
-# sudo systemctl stop booster-rtc-speech.service
+# booster-rtc-speech.service is not present on this robot image; the espeak_speaker
+# node (started below) consumes the brain's /speak topic and speaks via espeak.
 ./scripts/stop.sh
 sudo jetson_clocks
 sudo systemctl mask apt-daily.timer apt-daily-upgrade.timer
@@ -16,7 +17,6 @@ sudo rm -f /var/lib/systemd/timers/stamp-apt-daily.timer
 sudo pkill -9 update_manager
 sudo pkill -9 python3
 systemctl --user disable robocup_game_assist.service
-systemctl stop booster-rtc-speech.service
 sudo systemctl disable --now booster-agent-manager.service
 
 echo "[START ROBOCUP NODES]"
@@ -41,7 +41,8 @@ nohup ros2 launch brain launch.py "$@" > brain.log 2>&1 &
 # nohup ros2 launch brain launch.py "$@"  > brain.log 2>&1 &
 echo "[START GAME_CONTROLLER]"
 nohup ros2 launch game_controller launch.py > game_controller.log 2>&1 &
-#echo "[START SOUND]"
-#nohup ros2 run sound_play sound_play_node > sound.log 2>&1 &
+echo "[START SOUND]"
+# espeak_speaker consumes the brain's /speak topic and speaks via espeak.
+nohup ros2 run espeak_speaker espeak_node > espeak.log 2>&1 &
 echo "[DONE]"
 sudo jetson_clocks
