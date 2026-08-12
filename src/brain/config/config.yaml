@@ -5,7 +5,7 @@ brain_node:
       player_id: 1 # 1 | 2 | 3 | 4 | 5
       field_type: "robo_league" # adult_size | kid_size | robo_league
         #player_role: "striker" # striker | goal_keeper
-      player_role: "striker" # striker | goal_keeper
+      player_role: "goal_keeper" # striker | goal_keeper
       initial_goalkeeper_id: 1 # Normal-play fallback before valid GameController data; 0 means unassigned in a penalty shootout
       player_start_pos: "right" # right | left; used for entry-field localization
       treat_person_as_robot: false # Debug option. Keep false during official matches.
@@ -176,7 +176,7 @@ brain_node:
       blocked_recovery_turn_rate: 0.5 # Turn slowly to refresh perception when no translation is feasible (rad/s)
       fallen_robot_distance: 3.0 # Maximum distance for fallen-robot avoidance and VisualKick protection (m)
       fallen_robot_angle: 0.7853981633974483 # VisualKick forward protection half-angle; default +/-45 degrees (rad)
-      enable_fallen_robot_visual_kick_exit: true # Allow fallen-robot detections to block or exit VisualKick
+      enable_fallen_robot_visual_kick_exit: false # Allow fallen-robot detections to block or exit VisualKick
       avoid_during_kick: false 
       kick_ao_safe_dist: 1.5 
       kick_ao_use_shoot: false 
@@ -197,7 +197,7 @@ brain_node:
 
     rerunLog:
       enable_tcp: true # Stream logs over the network
-      server_ip: "192.168.10.10:9876" # Address of the machine running Rerun Viewer
+      server_ip: "192.168.0.7:9876" # Address of the machine running Rerun Viewer
       enable_file: true # Write logs locally
       log_dir: "/home/booster/Workspace/rrlog" # Local directory for timestamped log files
       max_log_file_mins: 5.0 # Rotate local logs after this duration to avoid oversized files
