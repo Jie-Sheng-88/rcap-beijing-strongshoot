@@ -4840,7 +4840,7 @@ void Brain::speak(string text, bool allowRepeat)
         // log->log("debug/speak", rerun::TextLog(msg));
     };
 
-    const double COOLDOWN_MSECS = 2000.;
+    const double COOLDOWN_MSECS = 500.;
     if (!pubSpeak) {
         log_("publisher not found");
         return;
@@ -8476,7 +8476,6 @@ void Brain::statusReport() {
     } else {
         report = "";
         if (!camOK) report += "camera lost";
-        if (!gcOK) report += "gamecontrol lost";
     }
     if (lastReport != report) {
         speak(report);
@@ -8507,7 +8506,7 @@ void Brain::speakStateAndDecision() {
     static string lastDecision;
     string decision = tree->getEntry<string>("decision");
     if (decision != lastDecision && !decision.empty()) {
-        speak(decision, true);
+        speak(decision, false);
         lastDecision = decision;
     }
 
