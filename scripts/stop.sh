@@ -5,6 +5,7 @@ echo ["STOP BRAIN"]
 sudo killall -9 brain_node
 echo ["STOP SOUND"]
 sudo killall -9 sound_play_node
+sudo pkill -f espeak_node 2>/dev/null || true
 echo ["STOP GAMECONTROLLER"]
 # Some robot images start GameController from a Restart=always system service.
 # Stop the owner first; otherwise it can reclaim UDP 3838 after killall.

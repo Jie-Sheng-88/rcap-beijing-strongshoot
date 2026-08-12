@@ -180,6 +180,9 @@ public:
     // Use eSpeak for local text-to-speech; text must be English.
     void speak(string text, bool allowRepeat = false);
 
+    // Voice the current game state, decision, and status when they change.
+    void speakStateAndDecision();
+
     // Internal test helper: publish the ball position and kick direction for motion-control kick testing.
     void pubKickMsg();
 
@@ -250,6 +253,9 @@ public:
 
     // Process fall-recovery state.
     void recoveryStateCallback(const booster_interface::msg::RawBytesMsg &msg);
+
+    // Process manual command messages (e.g. wave/dance) for runtime debugging.
+    void commandCallback(const std_msgs::msg::String &msg);
 
     // New SDK recovery sequence: kPrepare -> GetUp -> kWalking -> kSoccer.
     void beginRecoveryPrepareSequence(booster::robot::b1::GetUpVersion version);

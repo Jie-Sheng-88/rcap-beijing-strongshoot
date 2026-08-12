@@ -2603,6 +2603,21 @@ NodeStatus GoalieDecide::tick()
     string lastDecision;
     getInput("decision_in", lastDecision);
 
+    // ponytail: reuses the striker's auto-visual-kick config knobs rather than
+    // adding goalie-specific ones. Split them out if the goalie ever needs
+    // different distance/angle windows than the striker.
+    bool enableAutoVisualKick = false;
+    brain->get_parameter("strategy.enable_auto_visual_kick", enableAutoVisualKick);
+    double autoVisualKickEnableDistMin = 0.2;
+    double autoVisualKickEnableDistMax = 4.0;
+    double autoVisualKickEnableAngle = 1.2217304763960306;
+    brain->get_parameter("strategy.auto_visual_kick_enable_dist_min", autoVisualKickEnableDistMin);
+    brain->get_parameter("strategy.auto_visual_kick_enable_dist_max", autoVisualKickEnableDistMax);
+    brain->get_parameter("strategy.auto_visual_kick_enable_angle", autoVisualKickEnableAngle);
+    const bool fallenRobotBlocksVisualKick =
+        brain->isFallenRobotVisualKickExitEnabled() &&
+        brain->hasFallenRobotInVisualKickZone();
+
     double kickDir = atan2(brain->data->ball.posToField.y, brain->data->ball.posToField.x + brain->config->fieldDimensions.length / 2);
     brain->data->kickDir = kickDir;
     double dir_rb_f = brain->data->robotBallAngleToField; // Field-frame robot-to-ball direction
@@ -2635,6 +2650,20 @@ NodeStatus GoalieDecide::tick()
         newDecision = "chase";
         color = 0x00FF00FF;
     }
+    else if (
+        enableAutoVisualKick &&
+        !fallenRobotBlocksVisualKick &&
+        !brain->tree->getEntry<bool>("ball_out") &&
+        !brain->data->lose_ball &&
+        ballRange < autoVisualKickEnableDistMax &&
+        ballRange > autoVisualKickEnableDistMin &&
+        fabs(ballYaw) < autoVisualKickEnableAngle
+    )
+    {
+        newDecision = "auto_visual_kick";
+        brain->data->tmImInVisualKick = true;
+        color = 0xFF00FFFF;
+    }
     else if (angleIsGood)
     {
         newDecision = "kick";
@@ -2645,6 +2674,25 @@ NodeStatus GoalieDecide::tick()
         newDecision = "adjust";
         color = 0x00FFFFFF;
     }
+
+    if (newDecision != "auto_visual_kick") {
+        brain->data->tmImInVisualKick = false;
+    }
+
+    // TEMP DEBUG - remove after diagnosing auto_visual_kick not firing.
+    std::cout << "[GoalieDecide] decision=" << newDecision
+              << " enableAVK=" << enableAutoVisualKick
+              << " fallenBlock=" << fallenRobotBlocksVisualKick
+              << " ballOut=" << brain->tree->getEntry<bool>("ball_out")
+              << " loseBall=" << brain->data->lose_ball
+              << " range=" << ballRange
+              << " yaw=" << ballYaw
+              << " distMin=" << autoVisualKickEnableDistMin
+              << " distMax=" << autoVisualKickEnableDistMax
+              << " angleMax=" << autoVisualKickEnableAngle
+              << " claim=" << goalieMayClaimBall
+              << " lead=" << brain->data->tmImLead
+              << std::endl;
 
     setOutput("decision_out", newDecision);
     brain->log->logToScreen("tree/Decide",
@@ -3675,7 +3723,14 @@ NodeStatus SelfLocateEnterField::tick()
 
     auto markers = brain->data->getMarkersForLocator();
     auto fd = brain->config->fieldDimensions;
-    
+
+    const bool calibrated = brain->tree->getEntry<bool>("odom_calibrated");
+    if (!calibrated && !_localizingAnnounced) {
+        _localizingAnnounced = true;
+        prtDebug(format("Localizing... scanning for pitch corners and field features (markers: %d)", markers.size()));
+        brain->speak("localizing");
+    }
+
     // Define constraints for both sides.
     PoseBox2D cEnterLeft = {-fd.length / 2, -fd.circleRadius, fd.width / 2, fd.width / 2 + 1, -M_PI / 2 - M_PI / 6, -M_PI / 2 + M_PI / 6};
     PoseBox2D cEnterRight = {-fd.length / 2, -fd.circleRadius, -fd.width / 2 - 1, -fd.width / 2, M_PI / 2 - M_PI / 6, M_PI / 2 + M_PI / 6};
@@ -3755,6 +3810,7 @@ NodeStatus SelfLocateEnterField::tick()
     brain->data->lastSuccessfulLocalizeTime = brain->get_clock()->now();
     prtDebug("Localization succeeded: " + to_string(res.pose.x) + " " + to_string(res.pose.y) + " " +  to_string(rad2deg(res.pose.theta)) + " Dur: " + to_string(res.msecs));
 
+    _localizingAnnounced = false; // Re-arm so a fresh entry/re-localization session announces again.
 
     return NodeStatus::SUCCESS;
 }
