@@ -1671,6 +1671,14 @@ NodeStatus GoToGoalBlockingPosition::tick() {
         safeDistToGoalline,
         safeBallX - ownGoalX);
 
+    // Goalie "find" mode: the ball position is unknown, so keep spinning the
+    // body while retreating (and once positioned) so the camera can sweep the
+    // whole area. If the goalie only retreated blindly, a ball directly behind
+    // the keeper could be pushed into the goal as an own goal.
+    const bool ballKnown = brain->data->ballDetected ||
+        brain->tree->getEntry<bool>("ball_location_known") ||
+        brain->tree->getEntry<bool>("tm_ball_pos_reliable");
+
     Pose2D targetPose;
     targetPose.x = curRole == "striker"
         ? std::max(ownGoalX + safeDistToGoalline, safeBallX - 1.5)
@@ -1692,8 +1700,10 @@ NodeStatus GoToGoalBlockingPosition::tick() {
     }
 
     double dist = norm(targetPose.x - robotPose.x, targetPose.y - robotPose.y);
-    if ( // Target position reached.
-        dist < distTolerance
+    // In find mode keep moving (and spinning) so the goalie never stops
+    // scanning; only stop once the ball position is known again.
+    if (ballKnown
+        && dist < distTolerance
         && fabs(safeBallYaw) < thetaTolerance
     ) {
         brain->client->setVelocity(0, 0, 0);
@@ -1703,10 +1713,39 @@ NodeStatus GoToGoalBlockingPosition::tick() {
     auto targetPose_r = brain->data->field2robot(targetPose);
     double vx = targetPose_r.x;
     double vy = targetPose_r.y;
-    double vtheta = cap(
-        safeBallYaw * 2.0,
-        brain->config->vthetaLimit,
-        -brain->config->vthetaLimit);
+    double vtheta;
+    if (!ballKnown) {
+        // Spin the body continuously while searching. Periodically reverse the
+        // direction and bias the first turn toward the last-known ball yaw so
+        // the camera sweeps both sides instead of one.
+        const double spinRate = std::max(
+            0.0,
+            brain->get_parameter("strategy.search.vtheta_limit").as_double());
+        const double flipMsecs = 3000.0;
+        if (spinRate <= 0.0) {
+            vtheta = 0.0;
+        } else {
+            if (!_spinInitialized ||
+                brain->msecsSince(_spinFlipStart) >= flipMsecs) {
+                if (!_spinInitialized) {
+                    _spinDir = (brain->data->ball.yawToRobot >= 0.0) ? 1.0 : -1.0;
+                    _spinInitialized = true;
+                } else {
+                    _spinDir *= -1.0;
+                }
+                _spinFlipStart = brain->get_clock()->now();
+            }
+            vtheta = cap(
+                spinRate * _spinDir,
+                brain->config->vthetaLimit,
+                -brain->config->vthetaLimit);
+        }
+    } else {
+        vtheta = cap(
+            safeBallYaw * 2.0,
+            brain->config->vthetaLimit,
+            -brain->config->vthetaLimit);
+    }
 
 
     double vxLimit, vyLimit;
