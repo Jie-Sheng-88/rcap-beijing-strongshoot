@@ -2611,6 +2611,22 @@ NodeStatus StrikerDecide::tick() {
         brain->data->tmImInVisualKick = false;
     }
 
+    // TEMP DEBUG - remove after diagnosing auto_visual_kick not firing.
+    std::cout << "[StrikerDecide] decision=" << newDecision
+              << " enableAVK=" << enableAutoVisualKick
+              << " fallenBlock=" << fallenRobotBlocksVisualKick
+              << " ballOut=" << brain->tree->getEntry<bool>("ball_out")
+              << " loseBall=" << brain->data->lose_ball
+              << " range=" << ballRange
+              << " yaw=" << ballYaw
+              << " distMin=" << autoVisualKickEnableDistMin
+              << " distMax=" << autoVisualKickEnableDistMax
+              << " angleMax=" << autoVisualKickEnableAngle
+              << " contextAllowed=" << visualKickContextAllowed
+              << " costEligible=" << visualKickCostEligible
+              << " lead=" << brain->data->tmImLead
+              << std::endl;
+
     setOutput("decision_out", newDecision);
     brain->log->logToScreen(
         "tree/Decide",
@@ -2636,17 +2652,29 @@ NodeStatus GoalieDecide::tick()
     string lastDecision;
     getInput("decision_in", lastDecision);
 
-    // ponytail: reuses the striker's auto-visual-kick config knobs rather than
-    // adding goalie-specific ones. Split them out if the goalie ever needs
-    // different distance/angle windows than the striker.
+    // ponytail: goalie-only auto-visual-kick windows, split by own-box zone
+    // (goal box nested inside penalty box; goal box checked first). Config:
+    // strategy.goalie_visual_kick.{goal_box,penalty_box}.*. StrikerDecide is
+    // untouched, still reads the shared strategy.auto_visual_kick_* keys.
+    const auto &fd = brain->config->fieldDimensions;
+    const double ownGoalX = -fd.length / 2.0;
+    const bool ballInGoalBox =
+        std::isfinite(brain->data->ball.posToField.x) &&
+        std::isfinite(brain->data->ball.posToField.y) &&
+        brain->data->ball.posToField.x <= ownGoalX + fd.goalAreaLength &&
+        std::fabs(brain->data->ball.posToField.y) <= fd.goalAreaWidth / 2.0;
+    const string zonePrefix = ballInGoalBox
+        ? "strategy.goalie_visual_kick.goal_box."
+        : "strategy.goalie_visual_kick.penalty_box.";
+
     bool enableAutoVisualKick = false;
-    brain->get_parameter("strategy.enable_auto_visual_kick", enableAutoVisualKick);
+    brain->get_parameter(zonePrefix + "enable_auto_visual_kick", enableAutoVisualKick);
     double autoVisualKickEnableDistMin = 0.2;
     double autoVisualKickEnableDistMax = 4.0;
     double autoVisualKickEnableAngle = 1.2217304763960306;
-    brain->get_parameter("strategy.auto_visual_kick_enable_dist_min", autoVisualKickEnableDistMin);
-    brain->get_parameter("strategy.auto_visual_kick_enable_dist_max", autoVisualKickEnableDistMax);
-    brain->get_parameter("strategy.auto_visual_kick_enable_angle", autoVisualKickEnableAngle);
+    brain->get_parameter(zonePrefix + "auto_visual_kick_enable_dist_min", autoVisualKickEnableDistMin);
+    brain->get_parameter(zonePrefix + "auto_visual_kick_enable_dist_max", autoVisualKickEnableDistMax);
+    brain->get_parameter(zonePrefix + "auto_visual_kick_enable_angle", autoVisualKickEnableAngle);
     const bool fallenRobotBlocksVisualKick =
         brain->isFallenRobotVisualKickExitEnabled() &&
         brain->hasFallenRobotInVisualKickZone();
