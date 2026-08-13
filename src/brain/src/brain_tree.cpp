@@ -3366,6 +3366,7 @@ NodeStatus RobotFindBall::onStart()
     }
 
     _turnDir = brain->data->ball.yawToRobot >= 0.0 ? 1.0 : -1.0;
+    getInput("continuous_spin", _continuousSpin);
     _phase = Phase::InitialSweep;
     _phaseStartTime = brain->get_clock()->now();
     _waypointIndex = 0;
@@ -3375,7 +3376,9 @@ NodeStatus RobotFindBall::onStart()
     _ourSetPlay = runtime.ourSetPlay;
     _searcherIndex = runtime.searcherIndex;
     _searcherCount = runtime.searcherCount;
-    _waypoints = makeRobotBallSearchPlan(brain, runtime);
+    if (!_continuousSpin) {
+        _waypoints = makeRobotBallSearchPlan(brain, runtime);
+    }
 
     return NodeStatus::RUNNING;
 }
@@ -3399,7 +3402,9 @@ NodeStatus RobotFindBall::onRunning()
         _ourSetPlay = runtime.ourSetPlay;
         _searcherIndex = runtime.searcherIndex;
         _searcherCount = runtime.searcherCount;
-        _waypoints = makeRobotBallSearchPlan(brain, runtime);
+        if (!_continuousSpin) {
+            _waypoints = makeRobotBallSearchPlan(brain, runtime);
+        }
         _waypointIndex = 0;
         _phase = Phase::InitialSweep;
         _phaseStartTime = brain->get_clock()->now();
@@ -3416,6 +3421,19 @@ NodeStatus RobotFindBall::onRunning()
         0.0,
         brain->get_parameter("strategy.search.vtheta_limit").as_double());
     vyawLimit = std::min(std::fabs(vyawLimit), configuredVthetaLimit);
+
+    // Continuous-spin mode (striker): spin the body on the spot with no time
+    // limit while searching, mirroring the goalie's find-mode spin. The
+    // direction follows the ball's last known position: if the ball exited the
+    // view on the robot's right (negative yaw), spin clockwise to catch up with
+    // where the ball was last seen; otherwise spin counter-clockwise.
+    if (_continuousSpin) {
+        const double lastYaw = brain->data->ball.yawToRobot;
+        const double spinDir =
+            std::isfinite(lastYaw) && lastYaw < 0.0 ? -1.0 : 1.0;
+        brain->client->setVelocity(0, 0, vyawLimit * spinDir);
+        return NodeStatus::RUNNING;
+    }
 
     // A fresh teammate sighting is useful even when its field position failed
     // the existing reliability filter. Stay local and scan until that resolves.
@@ -3510,6 +3528,7 @@ void RobotFindBall::onHalted()
 {
     brain->client->setVelocity(0, 0, 0);
     _turnDir = 1.0;
+    _continuousSpin = false;
     _phase = Phase::InitialSweep;
     _waypoints.clear();
     _waypointIndex = 0;
