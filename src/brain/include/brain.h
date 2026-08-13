@@ -3,10 +3,10 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
-#include <filesystem>
-#include <map>
+#include <filesystem> // CONFIG_HOT_RELOAD - safe to delete with the rest
+#include <map>        // CONFIG_HOT_RELOAD - safe to delete with the rest
 #include <string>
-#include <vector>
+#include <vector>     // CONFIG_HOT_RELOAD - safe to delete with the rest
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <rerun.hpp>
@@ -438,22 +438,32 @@ private:
     void initOdomDiagnosticLog();
     void initObstacleAvoidanceLog();
 
-    // ---------------------------------------------- Config hot reload ----------------------------------------------
+    // ======================= CONFIG_HOT_RELOAD : BEGIN =======================
+    // OPTIONAL FEATURE - DELETE THIS WHOLE BLOCK TO REMOVE IT.
+    //
     // Watch the --params-file YAML this node was launched with and push edited
     // values back into its own parameters, so retuning on the robot is "edit
     // the file, save" with no restart. Only parameters re-read through
     // get_parameter() on each tick change behaviour immediately; values that
     // loadConfig() snapshotted at startup still need a relaunch, exactly as
     // they do when set through the ROS parameter services.
-    void initConfigHotReload();
-    void maybeReloadConfig();
-    void applyConfigFile(const std::string &path);
+    //
+    // To remove entirely: grep -rn CONFIG_HOT_RELOAD src/brain and delete every
+    // hit. Nothing else in brain depends on any of it, and scripts/tune.py does
+    // NOT need it -- the tuner talks to the standard ROS parameter services that
+    // every node has. Removing this restores brain's exact previous behaviour.
+    // Quicker alternatives: set config_hot_reload.enable to false in the YAML,
+    // or git revert 207082d.
+    void initConfigHotReload();                       // CONFIG_HOT_RELOAD
+    void maybeReloadConfig();                         // CONFIG_HOT_RELOAD
+    void applyConfigFile(const std::string &path);    // CONFIG_HOT_RELOAD
 
-    std::vector<std::string> configWatchPaths_;
-    std::map<std::string, std::filesystem::file_time_type> configWatchStamps_;
-    rclcpp::Time lastConfigCheckTime_;
-    bool configHotReloadEnable_ = true;
-    double configHotReloadIntervalMs_ = 1000.0;
+    std::vector<std::string> configWatchPaths_;       // CONFIG_HOT_RELOAD
+    std::map<std::string, std::filesystem::file_time_type> configWatchStamps_; // CONFIG_HOT_RELOAD
+    rclcpp::Time lastConfigCheckTime_;                // CONFIG_HOT_RELOAD
+    bool configHotReloadEnable_ = true;               // CONFIG_HOT_RELOAD
+    double configHotReloadIntervalMs_ = 1000.0;       // CONFIG_HOT_RELOAD
+    // ======================== CONFIG_HOT_RELOAD : END ========================
     double distToObstacleImpl(
         double angle,
         const GameObject *ignoredFallenRobot,
