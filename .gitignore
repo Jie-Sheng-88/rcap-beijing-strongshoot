@@ -5,3 +5,4 @@
 /scripts/install
 /scripts/log
 *.log*
+/src/espeak_speaker/espeak_speaker/__pycache__/*
