@@ -776,9 +776,11 @@ Brain::Brain() : rclcpp::Node("brain_node")
 
     declare_parameter<string>("RLVisionKick.visual_kick_version", "kV2");
 
+    // CONFIG_HOT_RELOAD : BEGIN - optional feature, safe to delete these 3 lines
     // Re-apply edits to the launched --params-file without restarting brain.
-    declare_parameter<bool>("config_hot_reload.enable", true);
-    declare_parameter<double>("config_hot_reload.check_interval_ms", 1000.0);
+    declare_parameter<bool>("config_hot_reload.enable", true);              // CONFIG_HOT_RELOAD
+    declare_parameter<double>("config_hot_reload.check_interval_ms", 1000.0); // CONFIG_HOT_RELOAD
+    // CONFIG_HOT_RELOAD : END
 }
 
 Brain::~Brain()
@@ -816,7 +818,7 @@ void Brain::init()
     log->prepare();
     initOdomDiagnosticLog();
     initObstacleAvoidanceLog();
-    initConfigHotReload();
+    initConfigHotReload(); // CONFIG_HOT_RELOAD - optional, safe to delete this line
 
 
 
@@ -1175,6 +1177,13 @@ void Brain::loadConfig()
 }
 
 
+// ========================= CONFIG_HOT_RELOAD : BEGIN =========================
+// OPTIONAL FEATURE - DELETE EVERYTHING DOWN TO THE MATCHING "END" MARKER TO
+// REMOVE IT. Nothing else in brain calls into this block. scripts/tune.py does
+// NOT depend on it either: the tuner uses the standard ROS parameter services
+// that every node exposes. Also delete the three other CONFIG_HOT_RELOAD sites
+// (grep -rn CONFIG_HOT_RELOAD src/brain) and brain will behave exactly as it did
+// before this feature existed.
 namespace {
 
 // ROS parameter files nest scalars arbitrarily deep; brain addresses them with
@@ -1355,11 +1364,12 @@ void Brain::applyConfigFile(const std::string &path)
     }
     set_parameters(changed);
 }
+// ========================== CONFIG_HOT_RELOAD : END ==========================
 
 void Brain::tick()
 {
     std::lock_guard<std::recursive_mutex> stateLock(recoveryStateMutex_);
-    maybeReloadConfig();
+    maybeReloadConfig(); // CONFIG_HOT_RELOAD - optional, safe to delete this line
     // Write diagnostic and log information.
     logDebugInfo();
     // logObstacleDistance(); // Expensive; enable only when needed.
