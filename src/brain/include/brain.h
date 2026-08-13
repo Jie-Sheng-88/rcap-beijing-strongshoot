@@ -3,7 +3,10 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <filesystem>
+#include <map>
 #include <string>
+#include <vector>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <rerun.hpp>
@@ -434,6 +437,23 @@ private:
     void updateLogFile();
     void initOdomDiagnosticLog();
     void initObstacleAvoidanceLog();
+
+    // ---------------------------------------------- Config hot reload ----------------------------------------------
+    // Watch the --params-file YAML this node was launched with and push edited
+    // values back into its own parameters, so retuning on the robot is "edit
+    // the file, save" with no restart. Only parameters re-read through
+    // get_parameter() on each tick change behaviour immediately; values that
+    // loadConfig() snapshotted at startup still need a relaunch, exactly as
+    // they do when set through the ROS parameter services.
+    void initConfigHotReload();
+    void maybeReloadConfig();
+    void applyConfigFile(const std::string &path);
+
+    std::vector<std::string> configWatchPaths_;
+    std::map<std::string, std::filesystem::file_time_type> configWatchStamps_;
+    rclcpp::Time lastConfigCheckTime_;
+    bool configHotReloadEnable_ = true;
+    double configHotReloadIntervalMs_ = 1000.0;
     double distToObstacleImpl(
         double angle,
         const GameObject *ignoredFallenRobot,
