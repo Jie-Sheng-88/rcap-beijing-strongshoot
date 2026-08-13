@@ -14,11 +14,26 @@ source ./install/setup.bash
 # ./configs/fastdds.xml, start.sh uses /opt/booster/BoosterRos2/
 # fastdds_profile_udp_only.xml. Rather than hardcode a third copy that drifts,
 # read the profile back out of the running brain_node.
+# -x matches the process name; -f is the fallback for when the node is exec'd
+# under a wrapper and comm/ is something else.
 BRAIN_PID=$(pgrep -x brain_node | head -1)
+[ -z "$BRAIN_PID" ] && BRAIN_PID=$(pgrep -f '[b]rain_node' | head -1)
 
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 
-if [ -n "$BRAIN_PID" ] && [ -r "/proc/$BRAIN_PID/environ" ]; then
+if [ -z "$BRAIN_PID" ]; then
+    echo "[TUNE] WARNING: no brain_node process found. Is brain actually up?"
+    echo "[TUNE]   pgrep -a -f brain_node"
+    echo "[TUNE]   tail -50 brain.log     # start.sh backgrounds brain, crashes are silent"
+    echo "[TUNE] assuming ./configs/fastdds.xml, which is WRONG if you used start.sh"
+    export FASTDDS_DEFAULT_PROFILES_FILE=./configs/fastdds.xml
+elif [ ! -r "/proc/$BRAIN_PID/environ" ]; then
+    # Different user (started under sudo?), so the profile cannot be read back.
+    echo "[TUNE] WARNING: brain_node is pid $BRAIN_PID but /proc/$BRAIN_PID/environ is unreadable"
+    echo "[TUNE]   owner: $(stat -c %U /proc/$BRAIN_PID 2>/dev/null || echo unknown), you: $(id -un)"
+    echo "[TUNE] assuming ./configs/fastdds.xml, which is WRONG if you used start.sh"
+    export FASTDDS_DEFAULT_PROFILES_FILE=./configs/fastdds.xml
+else
     BRAIN_PROFILE=$(tr '\0' '\n' < "/proc/$BRAIN_PID/environ" \
         | sed -n 's/^FASTDDS_DEFAULT_PROFILES_FILE=//p' | head -1)
     if [ -n "$BRAIN_PROFILE" ]; then
@@ -29,9 +44,6 @@ if [ -n "$BRAIN_PID" ] && [ -r "/proc/$BRAIN_PID/environ" ]; then
         echo "[TUNE] brain_node (pid $BRAIN_PID) runs with no FastDDS profile, matching that"
         unset FASTDDS_DEFAULT_PROFILES_FILE
     fi
-else
-    echo "[TUNE] brain_node not running (or /proc unreadable), assuming ./configs/fastdds.xml"
-    export FASTDDS_DEFAULT_PROFILES_FILE=./configs/fastdds.xml
 fi
 
 python3 ./scripts/tune.py "$@"
