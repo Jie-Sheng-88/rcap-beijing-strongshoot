@@ -2457,6 +2457,8 @@ NodeStatus StrikerDecide::tick() {
     brain->get_parameter("strategy.auto_visual_kick_enable_dist_min", autoVisualKickEnableDistMin);
     brain->get_parameter("strategy.auto_visual_kick_enable_dist_max", autoVisualKickEnableDistMax);
     brain->get_parameter("strategy.auto_visual_kick_enable_angle", autoVisualKickEnableAngle);
+    double autoVisualKickEnableGoalAngle = 0.35;
+    brain->get_parameter("strategy.auto_visual_kick_enable_goal_angle", autoVisualKickEnableGoalAngle);
 
     double kickDir = brain->data->kickDir;
     double dir_rb_f = brain->data->robotBallAngleToField; // Field-frame robot-to-ball direction
@@ -2494,6 +2496,12 @@ NodeStatus StrikerDecide::tick() {
 
     // Determine whether the robot crossed KickDir.
     double deltaDir = toPInPI(kickDir - dir_rb_f);
+    // Body heading vs. kickDir -- dir_rb_f is just where I'd need to stand to
+    // reach the ball, not which way the kick leg actually swings. Gating
+    // auto_visual_kick on dir_rb_f let theta drift up to +-ballYaw away from
+    // kickDir while still passing (compounds with the loose ballYaw camera
+    // tolerance), so compare the robot's real heading instead.
+    double bodyDeltaDir = toPInPI(kickDir - brain->data->robotPoseToField.theta);
     auto now = brain->get_clock()->now();
     auto dt = brain->msecsSince(timeLastTick);
     bool reachedKickDir = 
@@ -2566,7 +2574,8 @@ NodeStatus StrikerDecide::tick() {
         !brain->data->lose_ball &&
         ballRange < autoVisualKickEnableDistMax &&
         ballRange > autoVisualKickEnableDistMin &&
-        fabs(ballYaw) < autoVisualKickEnableAngle
+        fabs(ballYaw) < autoVisualKickEnableAngle &&
+        fabs(bodyDeltaDir) < autoVisualKickEnableGoalAngle
     ) {
         newDecision = "auto_visual_kick";
         brain->data->tmImInVisualKick = true;
@@ -2622,6 +2631,8 @@ NodeStatus StrikerDecide::tick() {
               << " distMin=" << autoVisualKickEnableDistMin
               << " distMax=" << autoVisualKickEnableDistMax
               << " angleMax=" << autoVisualKickEnableAngle
+              << " goalAngleMax=" << autoVisualKickEnableGoalAngle
+              << " bodyDeltaDir=" << bodyDeltaDir
               << " contextAllowed=" << visualKickContextAllowed
               << " costEligible=" << visualKickCostEligible
               << " lead=" << brain->data->tmImLead
@@ -2631,8 +2642,8 @@ NodeStatus StrikerDecide::tick() {
     brain->log->logToScreen(
         "tree/Decide",
         format(
-            "Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f angleGoodForKick: %d angleGoodForShoot: %d lead: %d", 
-            newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, angleGoodForKick, angleGoodForShoot, brain->data->tmImLead
+            "Decision: %s ballrange: %.2f ballyaw: %.2f kickDir: %.2f rbDir: %.2f theta: %.2f bodyDeltaDir: %.2f angleGoodForKick: %d angleGoodForShoot: %d lead: %d",
+            newDecision.c_str(), ballRange, ballYaw, kickDir, dir_rb_f, brain->data->robotPoseToField.theta, bodyDeltaDir, angleGoodForKick, angleGoodForShoot, brain->data->tmImLead
         ),
         color
     );
