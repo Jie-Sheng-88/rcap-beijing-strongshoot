@@ -668,9 +668,6 @@ public:
     BT::NodeStatus tick() override;
 private:
     Brain *brain;
-    double _spinDir = 1.0;
-    bool _spinInitialized = false;
-    rclcpp::Time _spinFlipStart;
 };
 
 class Assist : public SyncActionNode

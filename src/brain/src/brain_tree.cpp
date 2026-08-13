@@ -1715,28 +1715,22 @@ NodeStatus GoToGoalBlockingPosition::tick() {
     double vy = targetPose_r.y;
     double vtheta;
     if (!ballKnown) {
-        // Spin the body continuously while searching. Periodically reverse the
-        // direction and bias the first turn toward the last-known ball yaw so
-        // the camera sweeps both sides instead of one.
+        // Spin the body continuously (no time limit) while searching so the
+        // camera keeps sweeping the area. The direction follows the ball's last
+        // known position: if the ball exited the view on the robot's right
+        // (negative yaw), spin clockwise to catch up with where the ball was
+        // last seen; otherwise spin counter-clockwise.
         const double spinRate = std::max(
             0.0,
             brain->get_parameter("strategy.search.vtheta_limit").as_double());
-        const double flipMsecs = 3000.0;
         if (spinRate <= 0.0) {
             vtheta = 0.0;
         } else {
-            if (!_spinInitialized ||
-                brain->msecsSince(_spinFlipStart) >= flipMsecs) {
-                if (!_spinInitialized) {
-                    _spinDir = (brain->data->ball.yawToRobot >= 0.0) ? 1.0 : -1.0;
-                    _spinInitialized = true;
-                } else {
-                    _spinDir *= -1.0;
-                }
-                _spinFlipStart = brain->get_clock()->now();
-            }
+            const double lastYaw = brain->data->ball.yawToRobot;
+            const double spinDir =
+                std::isfinite(lastYaw) && lastYaw < 0.0 ? -1.0 : 1.0;
             vtheta = cap(
-                spinRate * _spinDir,
+                spinRate * spinDir,
                 brain->config->vthetaLimit,
                 -brain->config->vthetaLimit);
         }
