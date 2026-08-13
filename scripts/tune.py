@@ -5,8 +5,10 @@ Run over SSH on the robot while brain is playing. Most brain parameters are
 re-read via get_parameter() on every tick, so setting them takes effect
 immediately -- no rebuild, no restart, no walking the robot back to position.
 
-Launch through ./scripts/tune.sh, which sets the FastDDS profile that
-start_brain.sh uses. Without that profile this tuner cannot discover brain_node.
+Launch through ./scripts/tune.sh, which reads the FastDDS profile back out of
+the running brain_node and matches it. This matters because start.sh and
+start_brain.sh export different profiles; on a mismatch the two participants
+never complete discovery and this tuner cannot see brain_node at all.
 
 Three kinds of knob, and the difference matters:
 
@@ -748,9 +750,14 @@ def main():
     if not brain.wait(timeout=30.0):
         sys.stderr.write(
             "\n%s did not answer.\n"
-            "  - is brain running?  ./scripts/start_brain.sh\n"
-            "  - did you launch through ./scripts/tune.sh? without its\n"
-            "    FASTDDS_DEFAULT_PROFILES_FILE the tuner cannot see brain_node\n" % NODE)
+            "  - is brain running?  pgrep -x brain_node\n"
+            "  - did you launch through ./scripts/tune.sh? launching tune.py\n"
+            "    directly leaves FASTDDS_DEFAULT_PROFILES_FILE unmatched\n"
+            "  - FastDDS profile mismatch is the usual cause. Compare:\n"
+            "      echo $FASTDDS_DEFAULT_PROFILES_FILE\n"
+            "      tr '\\0' '\\n' < /proc/$(pgrep -x brain_node)/environ"
+            " | grep FASTDDS\n"
+            "    They must be the same file.\n" % NODE)
         node.destroy_node()
         rclpy.shutdown()
         return 1
