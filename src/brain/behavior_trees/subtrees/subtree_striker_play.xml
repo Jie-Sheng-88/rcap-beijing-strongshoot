@@ -1,6 +1,5 @@
 <root BTCPP_format="4" >
    <include path="./subtree_cam_find_and_track_ball.xml" />
-   <include path="./subtree_find_ball.xml" />
    <include path="./subtree_locate.xml" />
    <BehaviorTree ID="StrikerPlay">
       <ReactiveSequence>
@@ -9,7 +8,10 @@
          <ReactiveSequence _while="wait_for_opponent_kickoff" name="Wait for opponent kickoff">
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
             <!-- Once the referee releases STOP, RobotFindBall moves into a safe observation area for an opponent goal kick or corner kick. -->
-            <SubTree ID="FindBall" _while="!(ball_location_known || tm_ball_pos_reliable)" _autoremap="true" />
+            <Sequence _while="!(ball_location_known || tm_ball_pos_reliable)">
+               <CamFindBall />
+               <RobotFindBall vyaw_limit="0.8" continuous_spin="true" />
+            </Sequence>
             <SetVelocity />
          </ReactiveSequence>
          <ReactiveSequence _while="!wait_for_opponent_kickoff" name="Normal play: our kickoff or opponent has kicked off">
@@ -25,7 +27,10 @@
                   <Sequence>
                      <ReactiveSequence>
                         <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.0" />
-                        <SubTree ID="FindBall" _while="decision=='find'" _autoremap="true" />
+                        <Sequence _while="decision=='find'">
+                           <CamFindBall />
+                           <RobotFindBall vyaw_limit="0.8" continuous_spin="true" />
+                        </Sequence>
                      </ReactiveSequence>
                         <Assist _while="decision == 'assist'" vx_limit = "0.5" vy_limit="0.5" />
                         <Chase   _while="decision == 'chase'"  vx_limit="1.8"  vy_limit="0.4"  vtheta_limit="1.0"  dist="0.1" safe_dist="0.5" />
