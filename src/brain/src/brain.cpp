@@ -581,6 +581,7 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.auto_visual_kick_enable_dist_min", 0.2);
     declare_parameter<double>("strategy.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.auto_visual_kick_enable_angle", 1.2217304763960306);
+    declare_parameter<double>("strategy.auto_visual_kick_enable_goal_angle", 0.35);
     declare_parameter<bool>("strategy.power_shoot.enable", false);
     declare_parameter<bool>("strategy.power_shoot.use_for_kickoff", false);
     declare_parameter<double>("strategy.power_shoot.xmin", 0.5);
