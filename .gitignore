@@ -6,3 +6,8 @@
 /scripts/log
 *.log*
 /src/espeak_speaker/espeak_speaker/__pycache__/*
+__pycache__/
+
+# Per-robot parameter overrides written by scripts/tune.py and loaded by
+# launch.py after config.yaml. Tuning belongs to a robot, not to a branch.
+/src/brain/config/config_local.yaml
