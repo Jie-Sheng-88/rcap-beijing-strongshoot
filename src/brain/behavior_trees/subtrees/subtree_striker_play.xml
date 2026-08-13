@@ -23,7 +23,7 @@
             <ReactiveSequence _while="!ball_out">
                <ReactiveSequence >
                   <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
-                  <CalcKickDir />
+                  <CalcKickDir cross_threshold="-1.0" />
                   <Sequence>
                      <ReactiveSequence>
                         <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.0" />
