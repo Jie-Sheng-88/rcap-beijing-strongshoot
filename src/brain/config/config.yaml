@@ -29,7 +29,7 @@ brain_node:
       odom_theta_alignment_min_concentration: 0.75 # Circular-mean concentration; values closer to 1 are more stable
       vx_factor: 0.90 
       yaw_offset: 0.0 
-      vx_limit: 2.0
+      vx_limit: 3.0
       vy_limit: 1.7
       vtheta_limit: 1.5 
       min_vx: 0.4 # Command dead-zone compensation for nonzero vx (m/s)
