@@ -212,7 +212,12 @@ class RobotFindBall : public StatefulActionNode
 {
 public:
     RobotFindBall(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
-    static PortsList providedPorts() { return { InputPort<double>("vyaw_limit", 1.0, "") }; }
+    static PortsList providedPorts() {
+        return {
+            InputPort<double>("vyaw_limit", 1.0, ""),
+            InputPort<bool>("continuous_spin", false, "")
+        };
+    }
     NodeStatus onStart() override;
     NodeStatus onRunning() override;
     void onHalted() override;
@@ -224,6 +229,7 @@ private:
     };
 
     double _turnDir = 1.0;
+    bool _continuousSpin = false;
     Phase _phase = Phase::InitialSweep;
     rclcpp::Time _phaseStartTime;
     vector<Pose2D> _waypoints;
