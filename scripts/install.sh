@@ -52,7 +52,8 @@ REQUIRED_PACKAGES=(
     ros-kilted-backward-ros \
     libceres-dev \
     libfftw3-dev \
-    espeak
+    espeak \
+    mpg123
 )
 MISSING_PACKAGES=()
 APT_UPDATED=0
