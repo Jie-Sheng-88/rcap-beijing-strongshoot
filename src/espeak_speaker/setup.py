@@ -9,6 +9,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['sui.mp3']),
         ('lib/' + package_name, ['scripts/espeak_node']),
     ],
     scripts=['scripts/espeak_node'],
@@ -16,6 +17,6 @@ setup(
     zip_safe=True,
     maintainer='lishuai',
     maintainer_email='lishuai@todo.todo',
-    description='Subscribe to the /speak topic and announce the text with eSpeak on the local speaker.',
+    description='Subscribe to the /speak topic and announce the text with eSpeak on the local speaker. Plays sui.mp3 when our team scores (detected from /robocup/game_controller).',
     license='Apache-2.0',
 )

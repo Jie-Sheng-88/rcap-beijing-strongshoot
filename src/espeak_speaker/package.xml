@@ -3,12 +3,14 @@
 <package format="3">
   <name>espeak_speaker</name>
   <version>0.0.1</version>
-  <description>Subscribe to the /speak topic and announce the text with eSpeak on the local speaker.</description>
+  <description>Subscribe to the /speak topic and announce the text with eSpeak on the local speaker. Plays sui.mp3 when our team scores (detected from /robocup/game_controller).</description>
   <maintainer email="lishuai@todo.todo">lishuai</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>game_controller_interface</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
