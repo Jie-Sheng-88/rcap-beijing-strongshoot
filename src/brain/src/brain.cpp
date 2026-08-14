@@ -582,6 +582,16 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.auto_visual_kick_enable_angle", 1.2217304763960306);
     declare_parameter<double>("strategy.auto_visual_kick_enable_goal_angle", 0.35);
+    // ponytail: goalie-only override, split by own-box zone. StrikerDecide keeps
+    // reading the shared strategy.auto_visual_kick_* keys above untouched.
+    declare_parameter<bool>("strategy.goalie_visual_kick.goal_box.enable_auto_visual_kick", true);
+    declare_parameter<double>("strategy.goalie_visual_kick.goal_box.auto_visual_kick_enable_dist_min", 0.2);
+    declare_parameter<double>("strategy.goalie_visual_kick.goal_box.auto_visual_kick_enable_dist_max", 4.0);
+    declare_parameter<double>("strategy.goalie_visual_kick.goal_box.auto_visual_kick_enable_angle", 1.2217304763960306);
+    declare_parameter<bool>("strategy.goalie_visual_kick.penalty_box.enable_auto_visual_kick", true);
+    declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_dist_min", 0.2);
+    declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_dist_max", 4.0);
+    declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_angle", 1.2217304763960306);
     declare_parameter<bool>("strategy.power_shoot.enable", false);
     declare_parameter<bool>("strategy.power_shoot.use_for_kickoff", false);
     declare_parameter<double>("strategy.power_shoot.xmin", 0.5);
