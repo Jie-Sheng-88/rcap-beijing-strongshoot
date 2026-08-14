@@ -775,6 +775,12 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("recovery.heading_realign_max_candidate_pos_m", 2.5);
 
     declare_parameter<string>("RLVisionKick.visual_kick_version", "kV2");
+
+    // CONFIG_HOT_RELOAD : BEGIN - optional feature, safe to delete these 3 lines
+    // Re-apply edits to the launched --params-file without restarting brain.
+    declare_parameter<bool>("config_hot_reload.enable", true);              // CONFIG_HOT_RELOAD
+    declare_parameter<double>("config_hot_reload.check_interval_ms", 1000.0); // CONFIG_HOT_RELOAD
+    // CONFIG_HOT_RELOAD : END
 }
 
 Brain::~Brain()
@@ -812,6 +818,7 @@ void Brain::init()
     log->prepare();
     initOdomDiagnosticLog();
     initObstacleAvoidanceLog();
+    initConfigHotReload(); // CONFIG_HOT_RELOAD - optional, safe to delete this line
 
 
 
@@ -1170,9 +1177,199 @@ void Brain::loadConfig()
 }
 
 
+// ========================= CONFIG_HOT_RELOAD : BEGIN =========================
+// OPTIONAL FEATURE - DELETE EVERYTHING DOWN TO THE MATCHING "END" MARKER TO
+// REMOVE IT. Nothing else in brain calls into this block. scripts/tune.py does
+// NOT depend on it either: the tuner uses the standard ROS parameter services
+// that every node exposes. Also delete the three other CONFIG_HOT_RELOAD sites
+// (grep -rn CONFIG_HOT_RELOAD src/brain) and brain will behave exactly as it did
+// before this feature existed.
+namespace {
+
+// ROS parameter files nest scalars arbitrarily deep; brain addresses them with
+// dots. Sequences are skipped: no brain parameter is an array.
+void flattenConfigYaml(
+    const YAML::Node &node,
+    const std::string &prefix,
+    std::map<std::string, YAML::Node> &out)
+{
+    if (!node.IsMap()) return;
+    for (const auto &entry : node) {
+        const std::string key = entry.first.as<std::string>();
+        const std::string name = prefix.empty() ? key : prefix + "." + key;
+        if (entry.second.IsMap()) {
+            flattenConfigYaml(entry.second, name, out);
+        } else if (entry.second.IsScalar()) {
+            out[name] = entry.second;
+        }
+    }
+}
+
+// The launch file passes config.yaml with --params-file. Read the paths back
+// out of our own command line so the watcher follows the file this node
+// actually loaded, rather than a guessed repository path that may not be the
+// installed copy.
+std::vector<std::string> commandLineParamsFiles()
+{
+    std::vector<std::string> paths;
+    std::ifstream cmdline("/proc/self/cmdline", std::ios::binary);
+    if (!cmdline) return paths;
+
+    std::vector<std::string> arguments;
+    std::string argument;
+    char character = 0;
+    while (cmdline.get(character)) {
+        if (character == '\0') {
+            arguments.push_back(argument);
+            argument.clear();
+        } else {
+            argument.push_back(character);
+        }
+    }
+    if (!argument.empty()) arguments.push_back(argument);
+
+    for (size_t i = 0; i + 1 < arguments.size(); ++i) {
+        if (arguments[i] == "--params-file") paths.push_back(arguments[i + 1]);
+    }
+    return paths;
+}
+
+} // namespace
+
+void Brain::initConfigHotReload()
+{
+    get_parameter("config_hot_reload.enable", configHotReloadEnable_);
+    get_parameter(
+        "config_hot_reload.check_interval_ms", configHotReloadIntervalMs_);
+    lastConfigCheckTime_ = get_clock()->now();
+    if (!configHotReloadEnable_) return;
+
+    for (const auto &path : commandLineParamsFiles()) {
+        // ros2 launch generates /tmp/launch_params_*; nobody edits those.
+        if (path.rfind("/tmp/", 0) == 0) continue;
+        std::error_code pathError;
+        if (!std::filesystem::exists(path, pathError)) continue;
+        configWatchPaths_.push_back(path);
+        configWatchStamps_[path] =
+            std::filesystem::last_write_time(path, pathError);
+        RCLCPP_INFO(
+            get_logger(),
+            "Config hot reload: watching %s (edit and save to retune, %.0f ms poll)",
+            path.c_str(),
+            configHotReloadIntervalMs_);
+    }
+    if (configWatchPaths_.empty()) {
+        RCLCPP_WARN(
+            get_logger(),
+            "Config hot reload enabled but no editable --params-file was found");
+    }
+}
+
+void Brain::maybeReloadConfig()
+{
+    if (!configHotReloadEnable_ || configWatchPaths_.empty()) return;
+
+    const auto now = get_clock()->now();
+    const double msecsSinceCheck =
+        (now - lastConfigCheckTime_).nanoseconds() / 1e6;
+    if (msecsSinceCheck < configHotReloadIntervalMs_) return;
+    lastConfigCheckTime_ = now;
+
+    for (const auto &path : configWatchPaths_) {
+        std::error_code stampError;
+        const auto stamp = std::filesystem::last_write_time(path, stampError);
+        if (stampError) continue; // Mid-save rename; pick it up next poll.
+        if (stamp == configWatchStamps_[path]) continue;
+        configWatchStamps_[path] = stamp;
+        applyConfigFile(path);
+    }
+}
+
+void Brain::applyConfigFile(const std::string &path)
+{
+    YAML::Node root;
+    try {
+        root = YAML::LoadFile(path);
+    } catch (const std::exception &error) {
+        // A half-written file is normal while an editor saves; the next poll
+        // sees the finished file. Never let a parse error kill a running match.
+        RCLCPP_WARN(
+            get_logger(),
+            "Config hot reload: cannot parse '%s': %s",
+            path.c_str(),
+            error.what());
+        return;
+    }
+
+    std::map<std::string, YAML::Node> values;
+    for (const auto &nodeEntry : root) {
+        const std::string nodeName = nodeEntry.first.as<std::string>();
+        if (nodeName != "brain_node" && nodeName != "/brain_node" &&
+            nodeName != "/**") {
+            continue;
+        }
+        const YAML::Node parameters = nodeEntry.second["ros__parameters"];
+        if (parameters && parameters.IsMap()) {
+            flattenConfigYaml(parameters, "", values);
+        }
+    }
+
+    // The declared type wins, so "100." staying an int or 1 becoming a double
+    // in the file cannot flip a parameter's type out from under the readers.
+    std::vector<rclcpp::Parameter> changed;
+    for (const auto &item : values) {
+        const std::string &name = item.first;
+        if (!has_parameter(name)) continue;
+        const rclcpp::Parameter current = get_parameter(name);
+        try {
+            switch (current.get_type()) {
+            case rclcpp::ParameterType::PARAMETER_BOOL: {
+                const bool value = item.second.as<bool>();
+                if (value != current.as_bool()) changed.emplace_back(name, value);
+                break;
+            }
+            case rclcpp::ParameterType::PARAMETER_INTEGER: {
+                const int64_t value = item.second.as<int64_t>();
+                if (value != current.as_int()) changed.emplace_back(name, value);
+                break;
+            }
+            case rclcpp::ParameterType::PARAMETER_DOUBLE: {
+                const double value = item.second.as<double>();
+                if (value != current.as_double()) changed.emplace_back(name, value);
+                break;
+            }
+            case rclcpp::ParameterType::PARAMETER_STRING: {
+                const std::string value = item.second.as<std::string>();
+                if (value != current.as_string()) changed.emplace_back(name, value);
+                break;
+            }
+            default:
+                break;
+            }
+        } catch (const std::exception &) {
+            RCLCPP_WARN(
+                get_logger(),
+                "Config hot reload: '%s' has a value the declared type rejects",
+                name.c_str());
+        }
+    }
+
+    if (changed.empty()) return;
+    for (const auto &parameter : changed) {
+        RCLCPP_INFO(
+            get_logger(),
+            "Config hot reload: %s = %s",
+            parameter.get_name().c_str(),
+            parameter.value_to_string().c_str());
+    }
+    set_parameters(changed);
+}
+// ========================== CONFIG_HOT_RELOAD : END ==========================
+
 void Brain::tick()
 {
     std::lock_guard<std::recursive_mutex> stateLock(recoveryStateMutex_);
+    maybeReloadConfig(); // CONFIG_HOT_RELOAD - optional, safe to delete this line
     // Write diagnostic and log information.
     logDebugInfo();
     // logObstacleDistance(); // Expensive; enable only when needed.
