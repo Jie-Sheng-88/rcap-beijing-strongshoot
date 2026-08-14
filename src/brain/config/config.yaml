@@ -88,6 +88,17 @@ brain_node:
       auto_visual_kick_enable_dist_max: 4.0
       auto_visual_kick_enable_angle: 1.2217304763960306 # 70-degree half-angle (rad)
       auto_visual_kick_enable_goal_angle: 0.35 # Max |kickDir - robotBallAngleToField| (rad); body must actually be aimed at the target, not just ball-centered
+      goalie_visual_kick: # Goalie-only auto-visual-kick windows, split by own-box zone (StrikerDecide is unaffected, still uses the shared knobs above)
+        goal_box: # Ball inside the smaller goal area (checked first; goal box sits inside the penalty box)
+          enable_auto_visual_kick: true
+          auto_visual_kick_enable_dist_min: 0.2
+          auto_visual_kick_enable_dist_max: 4.0
+          auto_visual_kick_enable_angle: 1.2217304763960306
+        penalty_box: # Ball inside the penalty box but outside the goal box
+          enable_auto_visual_kick: true
+          auto_visual_kick_enable_dist_min: 0.2
+          auto_visual_kick_enable_dist_max: 4.0
+          auto_visual_kick_enable_angle: 1.2217304763960306
       freekick:
         execution_timeout_ms: 10000.0 # Team-wide timeout from free-kick release to completion
         plan_select_ms: 250.0 # Wait for several tactical packets after STOP before freezing the authoritative plan
