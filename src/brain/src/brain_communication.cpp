@@ -417,7 +417,8 @@ void BrainCommunication::unicastCommunication() {
         msg.communicationId = static_cast<int>(sequence & 0x7FFFFFFFU);
         msg.teamId = brain->config->teamId;
         msg.playerId = brain->config->playerId;
-        msg.playerStartRole = brain->config->playerRole == "striker" ? 1 : 2;
+        msg.playerStartRole = brain->config->playerRole == "striker" ? 1 :
+            (brain->config->playerRole == "defender" ? 3 : 2);
         TeamOutboundSnapshot snapshot;
         {
             std::lock_guard<std::mutex> snapshotLock(
@@ -661,8 +662,8 @@ void BrainCommunication::spinCommunicationReceiver() {
         };
         const bool semanticFieldsValid =
             msg.bootId != 0 &&
-            (msg.playerRole == 1 || msg.playerRole == 2) &&
-            (msg.playerStartRole == 1 || msg.playerStartRole == 2) &&
+            (msg.playerRole == 1 || msg.playerRole == 2 || msg.playerRole == 3) &&
+            (msg.playerStartRole == 1 || msg.playerStartRole == 2 || msg.playerStartRole == 3) &&
             msg.ballOwnerId >= 0 &&
             msg.ballOwnerId <= brain->config->numOfPlayers &&
             msg.formationOwnerId >= 0 &&
@@ -788,9 +789,11 @@ void BrainCommunication::spinCommunicationReceiver() {
         }
         
         tmStatus.role = msg.playerRole == 1 ? "striker" :
-            (msg.playerRole == 2 ? "goal_keeper" : "not initialized");
+            (msg.playerRole == 2 ? "goal_keeper" :
+             (msg.playerRole == 3 ? "defender" : "not initialized"));
         tmStatus.startRole = msg.playerStartRole == 1 ? "striker" :
-            (msg.playerStartRole == 2 ? "goal_keeper" : "not initialized");
+            (msg.playerStartRole == 2 ? "goal_keeper" :
+             (msg.playerStartRole == 3 ? "defender" : "not initialized"));
         tmStatus.isAlive = msg.isAlive;
         tmStatus.ballDetected = msg.ballDetected;
         tmStatus.ballLocationKnown = msg.ballLocationKnown;

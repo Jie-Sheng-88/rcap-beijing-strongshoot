@@ -131,25 +131,26 @@ public:
     NodeStatus tick() override;
 private:
     Brain *brain;
-    rclcpp::Time timeLastBallKnown;
-    // Latches true once the defender has reached its recovery point during
-    // the current "ball on our half" episode; reset when the ball leaves our
-    // half. Prevents re-triggering recover on every later vision blip.
-    bool hasRecoveredThisEpisode = false;
+    rclcpp::Time timeLastBallKnown; // diagnostic only
+    // Main/assist is recomputed live every tick while the ball is on our
+    // half (brain->isMainDefender()). While the ball is on the opponent's
+    // half there's no live signal to rank against, so this latches whatever
+    // the role was the last time it *was* computed, for the CDM/kickoff-spot
+    // split during attack.
+    bool wasMainLastDefense = false;
 };
 
-// Defense mode: walk to whichever configured strategy.defender.recovery_points_{x,y}
-// entry is nearest the ball and not already occupied by a teammate, and face the ball.
-class Recover : public SyncActionNode
+// Defense mode, assist (not main): stand at the midpoint between the ball
+// and our own goal -- goal-side cover, dynamically recomputed every tick.
+class Cover : public SyncActionNode
 {
 public:
-    Recover(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    Cover(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
     static PortsList providedPorts() {
         return {
             InputPort<double>("vx_limit", 1.2, ""),
             InputPort<double>("vy_limit", 0.6, ""),
             InputPort<double>("vtheta_limit", 1.5, ""),
-            InputPort<double>("dist_tolerance", 0.3, ""),
         };
     }
     NodeStatus tick() override;
@@ -157,19 +158,45 @@ private:
     Brain *brain;
 };
 
-// Attack mode: trail the ball by standoff_dist on our side of the halfway line,
-// facing the ball. A standalone approximation of "support the striker" that does
-// not touch the striker-only cooperative assist-slot machinery (see Assist).
-class Support : public SyncActionNode
+// Attack mode, main (not assist): hold a holding-midfielder line just past
+// halfway (strategy.defender.cdm_x), y tracking the ball. Main pushes
+// forward here rather than assist -- it was the one engaging the ball
+// wherever it left our half, so it's already the closer one to the
+// opponent's half at the transition. Activation distance is handled one
+// level up in DefenderDecide -- once the ball comes within
+// strategy.defender.cdm_activation_distance, DefenderDecide switches to the
+// same chase/kick/find ladder its defense role uses instead of ticking this
+// node.
+class Cdm : public SyncActionNode
 {
 public:
-    Support(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    Cdm(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
     static PortsList providedPorts() {
         return {
-            InputPort<double>("standoff_dist", 3.0, ""),
-            InputPort<double>("vx_limit", 1.0, ""),
+            InputPort<double>("vx_limit", 1.2, ""),
             InputPort<double>("vy_limit", 0.6, ""),
             InputPort<double>("vtheta_limit", 1.5, ""),
+        };
+    }
+    NodeStatus tick() override;
+private:
+    Brain *brain;
+};
+
+// Attack mode, assist (not main): hold a fixed deep line on our own side
+// (strategy.defender.kickoff_spot_{x,y}) -- static point, no ball-tracking.
+// Assist holds this line rather than main -- it was covering goal-side
+// during defense (always nearer our own goal than the ball, by construction
+// of Cover's midpoint), so it's already the closer one to a deep line.
+class KickoffSpot : public SyncActionNode
+{
+public:
+    KickoffSpot(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    static PortsList providedPorts() {
+        return {
+            InputPort<double>("vx_limit", 1.0, ""),
+            InputPort<double>("vy_limit", 0.6, ""),
+            InputPort<double>("vtheta_limit", 1.0, ""),
         };
     }
     NodeStatus tick() override;

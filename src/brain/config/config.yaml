@@ -100,13 +100,13 @@ brain_node:
           auto_visual_kick_enable_dist_max: 4.0
           auto_visual_kick_enable_angle: 1.2217304763960306
       defender:
-        recovery_points_x: [-4.5, -4.5] # Own-half x coords, paired with recovery_points_y by index; one per defender slot (max 2 defenders)
-        recovery_points_y: [0.5, -0.5]
-        recovery_point_occupancy_radius: 1.0 # Skip a recovery point already claimed by a teammate within this radius, try the next-nearest instead
-        recovery_position_tolerance: 1.0 # Within this distance of the chosen recovery point, considered "in recovery position"
-        lost_ball_hold_secs: 1.5 # If ball goes unknown while chase/kick/adjust/auto_visual_kick was active, hold position this long before falling back to recover (avoids a wasted round-trip on brief vision blips)
+        kickoff_spot_x: -1.99 # Assist-defender attack-phase holding line, own side (~-circleRadius) -- assist covered goal-side during defense, so it's already the closer one to hold deep
+        kickoff_spot_y: 0.0
+        cdm_x: 1.5 # Main-defender attack-phase holding line, opponent side; y tracks the ball, clamped to field width -- main was engaging near where the ball left our half, so it's already the closer one to push forward
+        cdm_activation_distance: 3.0 # CDM engages (chase/kick/find, same as main) once the ball comes within this distance instead of holding the line
+        cdm_max_x: 4.5 # CDM never engages/presses beyond this x, regardless of activation distance; holds the cdm line instead once the ball crosses it
         enable_auto_visual_kick: true # Defender-only override; StrikerDecide/GoalieDecide keep reading their own strategy.auto_visual_kick_* / strategy.goalie_visual_kick.* keys
-        auto_visual_kick_enable_dist_min: 0.2
+        auto_visual_kick_enable_dist_min: 0.5 # Matches StrikerDecide's shared strategy.auto_visual_kick_enable_dist_min
         auto_visual_kick_enable_dist_max: 4.0
         auto_visual_kick_enable_angle: 1.2217304763960306
       freekick:

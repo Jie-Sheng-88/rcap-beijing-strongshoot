@@ -593,13 +593,13 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_angle", 1.2217304763960306);
     // Defender recovery points: parallel flat arrays (x[i], y[i]) since ROS2 params don't nest.
-    declare_parameter<std::vector<double>>("strategy.defender.recovery_points_x", {});
-    declare_parameter<std::vector<double>>("strategy.defender.recovery_points_y", {});
-    declare_parameter<double>("strategy.defender.recovery_point_occupancy_radius", 1.0);
-    declare_parameter<double>("strategy.defender.recovery_position_tolerance", 1.0);
-    declare_parameter<double>("strategy.defender.lost_ball_hold_secs", 1.5);
+    declare_parameter<double>("strategy.defender.kickoff_spot_x", -1.99);
+    declare_parameter<double>("strategy.defender.kickoff_spot_y", 0.0);
+    declare_parameter<double>("strategy.defender.cdm_x", 1.5);
+    declare_parameter<double>("strategy.defender.cdm_activation_distance", 3.0);
+    declare_parameter<double>("strategy.defender.cdm_max_x", 4.5);
     declare_parameter<bool>("strategy.defender.enable_auto_visual_kick", true);
-    declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_min", 0.2);
+    declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_min", 0.5);
     declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.defender.auto_visual_kick_enable_angle", 1.2217304763960306);
     declare_parameter<bool>("strategy.power_shoot.enable", false);
@@ -1417,8 +1417,11 @@ void Brain::tick()
 void Brain::refreshTeamCommunicationSnapshot()
 {
     TeamOutboundSnapshot snapshot;
-    snapshot.playerRole =
-        tree->getEntry<string>("player_role") == "goal_keeper" ? 2 : 1;
+    {
+        const string role = tree->getEntry<string>("player_role");
+        snapshot.playerRole =
+            role == "goal_keeper" ? 2 : (role == "defender" ? 3 : 1);
+    }
     snapshot.isAlive = data->tmImAlive;
     snapshot.isLead = data->tmImLead;
     snapshot.ballDetected = data->ballDetected;
@@ -4132,6 +4135,49 @@ bool Brain::isPrimaryStriker() {
 
     if (firstAliveStrikerIdx >= 0 && firstAliveStrikerIdx < myIdx) return false;
 
+    return true;
+}
+
+bool Brain::isMainDefender() {
+    string myRole = tree->getEntry<string>("player_role");
+    if (myRole != "defender") return false;
+
+    if (!config->enableCom) return true;
+
+    std::array<TMStatus, MAX_NUM_PLAYERS> teamStatuses{};
+    {
+        std::lock_guard<std::mutex> teamStatusLock(data->teamStatusMutex);
+        std::copy(
+            std::begin(data->tmStatus),
+            std::end(data->tmStatus),
+            teamStatuses.begin());
+    }
+
+    const double timeoutMs = std::max(
+        100.0,
+        get_parameter(
+            "strategy.cooperation.tactical_packet_timeout_ms").as_double());
+    const int myIdx = config->playerId - 1;
+    const double myCost = std::isfinite(data->tmMyCost) ? data->tmMyCost : 1e9;
+
+    // Main = lowest cost (closest to reaching/kicking the ball) among alive
+    // defender-role teammates; ties broken by lower player ID, matching the
+    // candidateBetter convention used for strikerCandidates in
+    // handleCooperation(). Recomputed live on every call -- no hysteresis.
+    for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
+        if (i == myIdx) continue;
+        const auto &status = teamStatuses[i];
+        if (data->penalty[i] != PENALTY_NONE ||
+            !status.isAlive ||
+            msecsSince(status.timeLastCom) > timeoutMs ||
+            status.role != "defender") {
+            continue;
+        }
+        const double tmCost = std::isfinite(status.cost) ? status.cost : 1e9;
+        if (tmCost < myCost || (tmCost == myCost && i < myIdx)) {
+            return false;
+        }
+    }
     return true;
 }
 

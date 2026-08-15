@@ -19,7 +19,7 @@ struct TeamCommunicationMsg
     int communicationId;
     int teamId;
     int playerId;
-    int playerRole; // 1: striker, 2: goal_keeper, 3: unknown
+    int playerRole; // 1: striker, 2: goal_keeper, 3: defender, other: unknown
     int playerStartRole; // Initially configured role, used for temporary goalkeeper replacement and recovery
     bool isAlive; // On the field and not penalized
     bool isLead; // Currently controlling the ball

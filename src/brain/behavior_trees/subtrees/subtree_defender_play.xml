@@ -9,17 +9,17 @@
             <SubTree ID="CamFindAndTrackBall" _autoremap="true" />
             <ReactiveSequence>
                <DefenderDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.0" />
-               <SetVelocity _while="decision == 'hold'" />
-               <Recover _while="decision == 'recover'" vx_limit="1.2" vy_limit="0.6" vtheta_limit="1.5" dist_tolerance="0.3" />
                <Sequence _while="decision == 'find'">
                   <CamFindBall />
                   <RobotFindBall continuous_spin="true" />
                </Sequence>
-               <Support _while="decision == 'support'" standoff_dist="3.0" vx_limit="1.0" vy_limit="0.6" vtheta_limit="1.5" />
-               <Chase   _while="decision == 'chase'"  vx_limit="1.8"  vy_limit="0.4"  vtheta_limit="1.0"  dist="0.4" safe_dist="0.6" />
-               <RLVisionKick _while="decision == 'auto_visual_kick'" min_msec_kick="1000" max_msec_kick="4000" range="4.0"/>
+               <Chase   _while="decision == 'chase'"  vx_limit="1.8"  vy_limit="0.4"  vtheta_limit="1.0"  dist="0.1" safe_dist="0.5" />
+               <RLVisionKick _while="decision == 'auto_visual_kick'" min_msec_kick="1500" max_msec_kick="7000" range="6.0"/>
                <Adjust  _while="decision == 'adjust'" turn_threshold="0.2" range="0.3" vx_limit="0.3" vy_limit="0.2" vtheta_limit="1.0" />
-               <Kick    _while="decision == 'kick'" speed_limit="1.0" min_msec_kick="700" />
+               <Kick    _while="decision == 'kick'" speed_limit="0.9" min_msec_kick="1000" msecs_stablize="1000" />
+               <Cover   _while="decision == 'cover'" vx_limit="1.2" vy_limit="0.6" vtheta_limit="1.5" />
+               <Cdm     _while="decision == 'cdm'" vx_limit="1.2" vy_limit="0.6" vtheta_limit="1.5" />
+               <KickoffSpot _while="decision == 'kickoff_spot'" vx_limit="1.0" vy_limit="0.6" vtheta_limit="1.0" />
             </ReactiveSequence>
          </ReactiveSequence>
       </ReactiveSequence>

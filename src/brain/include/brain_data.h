@@ -231,7 +231,6 @@ public:
     int tmMyCostRank = 0; // Cost rank among active strikers; -1 when excluded
     int myStrikerIDRank = 0; // This robot's ID rank among strikers
     bool tmImInVisualKick = false; // This robot is in visual-kick mode
-    bool inRecoveryPosition = false; // Defender: within strategy.defender.recovery_position_tolerance of its chosen recovery point
     bool shouldExitRLVisionKick = false; // Visual-kick mode should exit proactively
 
     // Leader and formation state. Cost rank is diagnostic/set-play data and does not select normal-play positions.

@@ -619,8 +619,9 @@ void BrainTree::init()
     REGISTER_BUILDER(GoBackInField)
     REGISTER_BUILDER(GoalieDecide)
     REGISTER_BUILDER(DefenderDecide)
-    REGISTER_BUILDER(Recover)
-    REGISTER_BUILDER(Support)
+    REGISTER_BUILDER(Cover)
+    REGISTER_BUILDER(Cdm)
+    REGISTER_BUILDER(KickoffSpot)
     REGISTER_BUILDER(DecideCheckBehind)
     REGISTER_BUILDER(WaveHand)
     REGISTER_BUILDER(MoveHead)
@@ -2793,28 +2794,52 @@ NodeStatus DefenderDecide::tick() {
     if (ballKnown) {
         timeLastBallKnown = brain->get_clock()->now();
     }
-    // Latch once Recover::tick() has actually gotten us to the point (read
-    // before this tick's decision can flip decision away from "recover" and
-    // reset brain->data->inRecoveryPosition below).
-    if (brain->data->inRecoveryPosition) {
-        hasRecoveredThisEpisode = true;
-    }
-    // If we were actively engaging the ball (chase/kick/adjust/auto_visual_kick,
-    // or already mid-hold) when it went unknown, don't immediately abandon
-    // position and walk all the way back to a recovery point on a brief
-    // vision blip -- hold here and keep scanning for a bit first. "hold"
-    // itself counts as engaged so this stays sticky for the whole window.
-    const bool wasEngaged =
-        lastDecision == "chase" || lastDecision == "kick" ||
-        lastDecision == "adjust" || lastDecision == "auto_visual_kick" ||
-        lastDecision == "hold";
-    double lostBallHoldSecs = 1.5;
-    brain->get_parameter("strategy.defender.lost_ball_hold_secs", lostBallHoldSecs);
+    // Diagnostic only -- nothing below gates on this, kept purely for
+    // Rerun/console visibility into how fresh the last ball sighting is.
     const double msecsSinceBallKnown = brain->msecsSince(timeLastBallKnown);
-    const bool withinLostBallHold =
-        wasEngaged && msecsSinceBallKnown < lostBallHoldSecs * 1000.0;
     const bool ballOut = brain->tree->getEntry<bool>("ball_out");
     const bool loseBall = brain->data->lose_ball;
+
+    // Main/assist: recomputed live every tick while the ball is on our half
+    // (brain->isMainDefender(), lowest tmMyCost among alive defender
+    // teammates -- no hysteresis by design). While the ball's on the
+    // opponent's half there's no live signal to rank against, so the
+    // CDM-vs-kickoff-spot split during attack reuses whichever role was
+    // last computed during defense.
+    const bool isMainNow = brain->isMainDefender();
+    if (ballCurrentOnOurHalf) {
+        wasMainLastDefense = isMainNow;
+    }
+    const bool actingAsMain = ballCurrentOnOurHalf ? isMainNow : wasMainLastDefense;
+
+    const auto &ball = brain->data->ball.posToField;
+    const auto &robotPose = brain->data->robotPoseToField;
+    double cdmActivationDistance = 3.0;
+    double cdmMaxX = 4.5;
+    brain->get_parameter(
+        "strategy.defender.cdm_activation_distance", cdmActivationDistance);
+    brain->get_parameter("strategy.defender.cdm_max_x", cdmMaxX);
+    const double ballToRobotDist = norm(ball.x - robotPose.x, ball.y - robotPose.y);
+    // Main pushes forward as CDM during attack, not assist: main was just
+    // engaging the ball wherever it left our half, so it's already the
+    // closer one to the opponent's half at the transition -- assist was
+    // covering goal-side (always nearer our own goal than the ball, by
+    // construction of Cover's midpoint), so it's already the closer one to
+    // a deep line. Swapping them would mean both crossing the whole pitch
+    // at every transition for no reason.
+    //
+    // CDM (main, pushed up) engages directly -- same ladder as its defense
+    // role -- once the ball comes within range, rather than only reacting
+    // once the ball literally reaches its holding line. Capped at cdm_max_x
+    // so a running ball can't drag it further upfield than that regardless
+    // of activation distance -- it holds the cdm line instead once the ball
+    // crosses the cap.
+    const bool cdmShouldIntercept =
+        !ballCurrentOnOurHalf && actingAsMain &&
+        ballToRobotDist < cdmActivationDistance &&
+        ball.x <= cdmMaxX;
+    const bool shouldEngage =
+        (ballCurrentOnOurHalf && actingAsMain) || cdmShouldIntercept;
 
     // Hoisted out of the branches below so every field is loggable
     // regardless of which one actually ran, per "make Rerun as complete as
@@ -2826,85 +2851,88 @@ NodeStatus DefenderDecide::tick() {
     double dirRbF = brain->data->robotBallAngleToField;
     double bodyDeltaDir = 0.0;
     bool angleIsGood = false, enableAutoVisualKick = false;
-    double distMin = 0.2, distMax = 4.0, angleMax = 1.2217304763960306, goalAngleMax = 0.35;
+    double distMin = 0.5, distMax = 4.0, angleMax = 1.2217304763960306, goalAngleMax = 0.35;
     bool fallenRobotBlocksVisualKick = false;
-    if (!ballCurrentOnOurHalf) {
-        decision = "support";
-        // Ball left our half: this defensive episode is over. Next time it
-        // comes back, recover is allowed to fire again from scratch.
-        hasRecoveredThisEpisode = false;
-    } else if (!ballKnown && withinLostBallHold) {
-        decision = "hold";
-    } else if (!ballKnown && !hasRecoveredThisEpisode) {
-        // Ball's on our side but we don't know where it is, and we haven't
-        // actually reached a covering position yet this episode -- get
-        // there first rather than searching from wherever we currently are.
-        decision = "recover";
-    } else if (!ballKnown) {
-        // Already reached a recovery point once this episode: don't retreat
-        // there again on every later vision blip. Actively search instead --
-        // safe to spin here since we're already covering our zone, unlike
-        // mid-transit.
-        decision = "find";
-    } else {
-        // Clear-away-from-goal kick direction: own-goal-center through the
-        // ball, continued outward. Same formula GoalieDecide uses for its
-        // own clears -- not aimed at a target, just away from danger.
-        const auto &fd = brain->config->fieldDimensions;
-        brain->data->kickDir = atan2(
-            brain->data->ball.posToField.y,
-            brain->data->ball.posToField.x + fd.length / 2.0);
-        // Same coarse "is the ball out toward the field" check GoalieDecide
-        // uses to gate a plain kick -- not a strict alignment check.
-        angleIsGood = (dirRbF > -M_PI / 2 && dirRbF < M_PI / 2);
-        bodyDeltaDir = toPInPI(
-            brain->data->kickDir - brain->data->robotPoseToField.theta);
 
-        // Defender-only enable/dist_min/dist_max/angle window
-        // (strategy.defender.*) -- independently tunable from the shared
-        // striker knobs and goalie's own goal_box/penalty_box override. The
-        // body-angle gate (goal_angle) stays on the shared key; split that
-        // out too if defender ever needs its own tolerance there.
-        brain->get_parameter("strategy.defender.enable_auto_visual_kick", enableAutoVisualKick);
-        brain->get_parameter("strategy.defender.auto_visual_kick_enable_dist_min", distMin);
-        brain->get_parameter("strategy.defender.auto_visual_kick_enable_dist_max", distMax);
-        brain->get_parameter("strategy.defender.auto_visual_kick_enable_angle", angleMax);
-        brain->get_parameter("strategy.auto_visual_kick_enable_goal_angle", goalAngleMax);
-        fallenRobotBlocksVisualKick =
-            brain->isFallenRobotVisualKickExitEnabled() &&
-            brain->hasFallenRobotInVisualKickZone();
-
-        if (ballRange > chaseThreshold * (lastDecision == "chase" ? 0.9 : 1.0)) {
-            decision = "chase";
-        } else if (
-            // RL kick takes precedence over a plain kick when eligible: it
-            // can scoop/correct the ball itself rather than needing the
-            // body already lined up.
-            enableAutoVisualKick &&
-            !fallenRobotBlocksVisualKick &&
-            !ballOut &&
-            !loseBall &&
-            ballRange < distMax &&
-            ballRange > distMin &&
-            fabs(ballYaw) < angleMax &&
-            fabs(bodyDeltaDir) < goalAngleMax
-        ) {
-            decision = "auto_visual_kick";
-            brain->data->tmImInVisualKick = true;
-        } else if (angleIsGood) {
-            decision = "kick";
+    if (shouldEngage) {
+        if (!ballKnown) {
+            // Fighting for the ball but temporarily lost it -- search in
+            // place rather than retreat; safe to spin, we're already
+            // engaging, not holding a covering line.
+            decision = "find";
         } else {
-            decision = "adjust";
+            const auto &fd = brain->config->fieldDimensions;
+            if (cdmShouldIntercept) {
+                // CDM intercepting in the opponent's half: this is an
+                // attacking opportunity, not a clearance -- aim at the
+                // actual opponent goal center.
+                brain->data->kickDir = atan2(
+                    -ball.y, fd.length / 2.0 - ball.x);
+            } else {
+                // Main defending: clear-away-from-goal kick direction --
+                // own-goal-center through the ball, continued outward. Same
+                // formula GoalieDecide uses for its own clears -- not aimed
+                // at a target, just away from danger.
+                brain->data->kickDir = atan2(ball.y, ball.x + fd.length / 2.0);
+            }
+            angleIsGood = (dirRbF > -M_PI / 2 && dirRbF < M_PI / 2);
+            bodyDeltaDir = toPInPI(
+                brain->data->kickDir - brain->data->robotPoseToField.theta);
+
+            brain->get_parameter("strategy.defender.enable_auto_visual_kick", enableAutoVisualKick);
+            brain->get_parameter("strategy.defender.auto_visual_kick_enable_dist_min", distMin);
+            brain->get_parameter("strategy.defender.auto_visual_kick_enable_dist_max", distMax);
+            brain->get_parameter("strategy.defender.auto_visual_kick_enable_angle", angleMax);
+            brain->get_parameter("strategy.auto_visual_kick_enable_goal_angle", goalAngleMax);
+            fallenRobotBlocksVisualKick =
+                brain->isFallenRobotVisualKickExitEnabled() &&
+                brain->hasFallenRobotInVisualKickZone();
+
+            if (
+                // RL kick takes precedence over chase and a plain kick when
+                // eligible: it can scoop/correct the ball itself rather than
+                // needing to walk all the way in first. Matches
+                // StrikerDecide's ordering (AVK before chase) -- not
+                // GoalieDecide's (chase before AVK), which would let chase's
+                // narrower threshold (1.0) always claim everything out to
+                // AVK's own wider window (up to distMax) before AVK ever
+                // gets a chance.
+                enableAutoVisualKick &&
+                !fallenRobotBlocksVisualKick &&
+                !ballOut &&
+                !loseBall &&
+                ballRange < distMax &&
+                ballRange > distMin &&
+                fabs(ballYaw) < angleMax &&
+                fabs(bodyDeltaDir) < goalAngleMax
+            ) {
+                decision = "auto_visual_kick";
+                brain->data->tmImInVisualKick = true;
+            } else if (ballRange > chaseThreshold * (lastDecision == "chase" ? 0.9 : 1.0)) {
+                decision = "chase";
+            } else if (angleIsGood) {
+                decision = "kick";
+            } else {
+                decision = "adjust";
+            }
         }
+    } else if (ballCurrentOnOurHalf) {
+        // Assist, defense: cover goal-side instead of fighting for the ball.
+        decision = "cover";
+    } else if (actingAsMain) {
+        // Main, attack, ball not close enough yet to intercept: hold the
+        // CDM line -- it was the one engaging near where the ball left our
+        // half, so it's already the closer one to the opponent's half.
+        decision = "cdm";
+    } else {
+        // Assist, attack: hold the deep kickoff-area line -- it was
+        // covering goal-side during defense, so it's already the closer
+        // one to a deep center-back line.
+        decision = "kickoff_spot";
     }
 
     if (decision != "auto_visual_kick") {
         brain->data->tmImInVisualKick = false;
-    }
-    if (decision != "recover") {
-        // Only meaningful while actively trying to recover; Recover::tick()
-        // sets the real value each tick it runs.
-        brain->data->inRecoveryPosition = false;
     }
 
     setOutput("decision_out", decision);
@@ -2916,15 +2944,15 @@ NodeStatus DefenderDecide::tick() {
         "decision=%s lastDecision=%s ballCurrentOnOurHalf=%d ballKnown=%d ballOut=%d "
         "loseBall=%d ballX=%.2f ballY=%.2f ballRange=%.2f ballYaw=%.2f dirRbF=%.2f "
         "kickDir=%.2f bodyDeltaDir=%.2f angleIsGood=%d AVK=%d distMin=%.2f distMax=%.2f "
-        "angleMax=%.2f goalAngleMax=%.2f fallenBlock=%d chaseThreshold=%.2f wasEngaged=%d "
-        "lostBallHoldSecs=%.2f withinLostBallHold=%d msecsSinceBallKnown=%.0f "
-        "inRecoveryPosition=%d hasRecoveredThisEpisode=%d",
+        "angleMax=%.2f goalAngleMax=%.2f fallenBlock=%d chaseThreshold=%.2f "
+        "msecsSinceBallKnown=%.0f isMainNow=%d wasMainLastDefense=%d actingAsMain=%d "
+        "ballToRobotDist=%.2f cdmActivationDistance=%.2f cdmMaxX=%.2f cdmShouldIntercept=%d",
         decision.c_str(), lastDecision.c_str(), ballCurrentOnOurHalf, ballKnown, ballOut,
-        loseBall, brain->data->ball.posToField.x, brain->data->ball.posToField.y, ballRange,
-        ballYaw, dirRbF, brain->data->kickDir, bodyDeltaDir, angleIsGood, enableAutoVisualKick,
-        distMin, distMax, angleMax, goalAngleMax, fallenRobotBlocksVisualKick, chaseThreshold,
-        wasEngaged, lostBallHoldSecs, withinLostBallHold, msecsSinceBallKnown,
-        brain->data->inRecoveryPosition, hasRecoveredThisEpisode);
+        loseBall, ball.x, ball.y, ballRange, ballYaw, dirRbF, brain->data->kickDir,
+        bodyDeltaDir, angleIsGood, enableAutoVisualKick, distMin, distMax, angleMax,
+        goalAngleMax, fallenRobotBlocksVisualKick, chaseThreshold, msecsSinceBallKnown,
+        isMainNow, wasMainLastDefense, actingAsMain, ballToRobotDist, cdmActivationDistance,
+        cdmMaxX, cdmShouldIntercept);
 
     // TEMP DEBUG - remove after diagnosing defender behavior, matches the
     // [StrikerDecide]/[GoalieDecide] cout pattern for greppable brain.log output.
@@ -2934,138 +2962,59 @@ NodeStatus DefenderDecide::tick() {
     return NodeStatus::SUCCESS;
 }
 
-NodeStatus Recover::tick() {
-    double vxLimit, vyLimit, vthetaLimit, distTolerance;
+NodeStatus Cover::tick() {
+    double vxLimit, vyLimit, vthetaLimit;
     getInput("vx_limit", vxLimit);
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
-    getInput("dist_tolerance", distTolerance);
-
-    std::vector<double> pointsX, pointsY;
-    brain->get_parameter("strategy.defender.recovery_points_x", pointsX);
-    brain->get_parameter("strategy.defender.recovery_points_y", pointsY);
-    const double occupancyRadius = std::max(
-        0.0,
-        brain->get_parameter(
-            "strategy.defender.recovery_point_occupancy_radius").as_double());
 
     const auto &fd = brain->config->fieldDimensions;
     const auto &ball = brain->data->ball.posToField;
-    double tx = 0.0, ty = 0.0;
-    if (!pointsX.empty() && pointsX.size() == pointsY.size()) {
-        // Candidates ordered nearest-to-ball first; skip any point a
-        // teammate is already occupying so two defenders don't stack.
-        std::vector<size_t> order(pointsX.size());
-        std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-            return norm(pointsX[a] - ball.x, pointsY[a] - ball.y) <
-                   norm(pointsX[b] - ball.x, pointsY[b] - ball.y);
-        });
-
-        std::array<TMStatus, MAX_NUM_PLAYERS> teamStatuses{};
-        {
-            std::lock_guard<std::mutex> teamStatusLock(
-                brain->data->teamStatusMutex);
-            std::copy(
-                std::begin(brain->data->tmStatus),
-                std::end(brain->data->tmStatus),
-                teamStatuses.begin());
-        }
-        const int selfIdx = brain->config->playerId - 1;
-
-        bool picked = false;
-        for (size_t idx : order) {
-            bool occupied = false;
-            for (int i = 0; i < MAX_NUM_PLAYERS; i++) {
-                if (i == selfIdx) continue;
-                if (brain->data->penalty[i] != PENALTY_NONE ||
-                    !teamStatuses[i].isAlive) {
-                    continue;
-                }
-                if (norm(
-                        teamStatuses[i].robotPoseToField.x - pointsX[idx],
-                        teamStatuses[i].robotPoseToField.y - pointsY[idx]) <
-                    occupancyRadius) {
-                    occupied = true;
-                    break;
-                }
-            }
-            if (!occupied) {
-                tx = pointsX[idx];
-                ty = pointsY[idx];
-                picked = true;
-                break;
-            }
-        }
-        if (!picked) {
-            // Every configured point is occupied: fall back to the nearest
-            // one anyway rather than idling.
-            tx = pointsX[order.front()];
-            ty = pointsY[order.front()];
-        }
-    } else {
-        // No recovery points configured: fall back to the same default as
-        // GoToReadyPosition's defender branch.
-        tx = -fd.length / 2.0 + fd.penaltyDist;
-        ty = 0.0;
-    }
-
-    // A recovery point can legitimately land right next to the ball (e.g. an
-    // opponent free kick fouled near our own goal, exactly where a recovery
-    // point is meant to cover) — standing there would encroach on a live
-    // free kick. When that happens, cover goal-side instead: stand on the
-    // ball-to-own-goal-center line, clearanceDist from the ball. Reuses the
-    // existing "keep clear" distance rather than inventing a new config key.
-    const double clearanceDist = std::max(
-        0.0,
-        brain->get_parameter(
-            "strategy.cooperation.assist_teammate_position_clearance").as_double());
     const double ownGoalX = -fd.length / 2.0;
-    if (norm(tx - ball.x, ty - ball.y) < clearanceDist) {
-        double dx = ownGoalX - ball.x;
-        double dy = 0.0 - ball.y;
-        double d = norm(dx, dy);
-        if (d > 1e-6) {
-            tx = ball.x + dx / d * clearanceDist;
-            ty = ball.y + dy / d * clearanceDist;
-        } else {
-            tx = ball.x;
-            ty = ball.y;
-        }
-    }
-
-    const double recoveryPositionTolerance = std::max(
-        0.0,
-        brain->get_parameter(
-            "strategy.defender.recovery_position_tolerance").as_double());
-    const auto &robotPose = brain->data->robotPoseToField;
-    brain->data->inRecoveryPosition =
-        norm(robotPose.x - tx, robotPose.y - ty) < recoveryPositionTolerance;
-
+    // Midpoint between the ball and our own goal -- recomputed every tick,
+    // no config, purely a function of the live ball position.
+    double tx = (ball.x + ownGoalX) / 2.0;
+    double ty = ball.y / 2.0;
     double ttheta = atan2(ball.y - ty, ball.x - tx);
+
     brain->client->moveToPoseOnField2(
         tx, ty, ttheta, 1.0, 0.4, vxLimit, vyLimit, vthetaLimit,
-        distTolerance, distTolerance, 0.2, true);
+        0.3, 0.3, 0.2, true);
     return NodeStatus::SUCCESS;
 }
 
-NodeStatus Support::tick() {
-    double standoffDist, vxLimit, vyLimit, vthetaLimit;
-    getInput("standoff_dist", standoffDist);
+NodeStatus Cdm::tick() {
+    double vxLimit, vyLimit, vthetaLimit;
     getInput("vx_limit", vxLimit);
     getInput("vy_limit", vyLimit);
     getInput("vtheta_limit", vthetaLimit);
 
+    double cdmX = 1.5;
+    brain->get_parameter("strategy.defender.cdm_x", cdmX);
     const auto &fd = brain->config->fieldDimensions;
     const auto &ball = brain->data->ball.posToField;
-    double tx = ball.x - standoffDist;
-    tx = std::min(tx, -0.1); // stay on our side of the halfway line
-    tx = std::max(tx, -fd.length / 2.0 + 0.5);
+    double tx = cdmX;
     double ty = std::clamp(ball.y, -fd.width / 2.0 + 0.5, fd.width / 2.0 - 0.5);
     double ttheta = atan2(ball.y - ty, ball.x - tx);
 
     brain->client->moveToPoseOnField2(
         tx, ty, ttheta, 1.0, 0.4, vxLimit, vyLimit, vthetaLimit,
+        0.3, 0.3, 0.2, true);
+    return NodeStatus::SUCCESS;
+}
+
+NodeStatus KickoffSpot::tick() {
+    double vxLimit, vyLimit, vthetaLimit;
+    getInput("vx_limit", vxLimit);
+    getInput("vy_limit", vyLimit);
+    getInput("vtheta_limit", vthetaLimit);
+
+    double tx = -1.99, ty = 0.0;
+    brain->get_parameter("strategy.defender.kickoff_spot_x", tx);
+    brain->get_parameter("strategy.defender.kickoff_spot_y", ty);
+
+    brain->client->moveToPoseOnField2(
+        tx, ty, 0.0, 1.0, 0.4, vxLimit, vyLimit, vthetaLimit,
         0.3, 0.3, 0.2, true);
     return NodeStatus::SUCCESS;
 }
@@ -5568,18 +5517,17 @@ NodeStatus GoToReadyPosition::tick()
         ty = 0;
         ttheta = 0;
     } else if (role == "defender") {
-        std::vector<double> pointsX, pointsY;
-        brain->get_parameter("strategy.defender.recovery_points_x", pointsX);
-        brain->get_parameter("strategy.defender.recovery_points_y", pointsY);
-        if (!pointsX.empty() && pointsX.size() == pointsY.size()) {
-            tx = pointsX[0];
-            ty = pointsY[0];
-        } else {
-            // No recovery points configured: fall back to a sane default,
-            // mirroring the striker's rank-3 (deepest) slot.
-            tx = -fd.length / 2.0 + fd.penaltyDist;
-            ty = 0.0;
-        }
+        // Same kickoff-spot config the live "kickoff_spot" decision uses
+        // (brain_tree.cpp KickoffSpot::tick()), so READY and in-play targets
+        // never drift out of sync. Both defenders would otherwise compute
+        // the identical point here (unlike live play, READY has no
+        // ball-distance signal to separate them) -- offset by a small fixed
+        // margin using isMainDefender()'s tie-break as a stable split.
+        double kickoffX = -1.99, kickoffY = 0.0;
+        brain->get_parameter("strategy.defender.kickoff_spot_x", kickoffX);
+        brain->get_parameter("strategy.defender.kickoff_spot_y", kickoffY);
+        tx = kickoffX;
+        ty = brain->isMainDefender() ? kickoffY + 1.5 : kickoffY - 1.5;
     }
 
     brain->client->moveToPoseOnField2(tx, ty, ttheta, longRangeThreshold, turnThreshold, vxLimit, vyLimit, vthetaLimit, distTolerance / 1.5, distTolerance / 1.5, thetaTolerance, avoidObstacle);

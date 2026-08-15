@@ -193,6 +193,7 @@ public:
     void pubCalParamMsg(double pitch, double yaw, double z);
 
     bool isPrimaryStriker();
+    bool isMainDefender(); // Closest (lowest tmMyCost) of the alive defender-role teammates; recomputed live every call, no latching
 
     // The goalkeeper competes for possession only when handling a nearby dangerous ball.
     bool canGoalkeeperClaimBall(
