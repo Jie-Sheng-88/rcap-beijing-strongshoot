@@ -52,7 +52,7 @@ brain_node:
         last_observation_max_age_secs: 12.0 # Maximum useful age of the last ball observation
         vx_limit: 0.7
         vy_limit: 0.35
-        vtheta_limit: 0.8
+        vtheta_limit: 1.5
         arrival_tolerance: 0.65
       soft_kickoff: false 
       soft_kickoff_speed: 0.3 

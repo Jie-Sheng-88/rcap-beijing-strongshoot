@@ -3426,12 +3426,9 @@ NodeStatus RobotFindBall::onRunning()
         return NodeStatus::RUNNING;
     }
 
-    double vyawLimit = 0.8;
-    getInput("vyaw_limit", vyawLimit);
-    const double configuredVthetaLimit = std::max(
+    const double vyawLimit = std::max(
         0.0,
         brain->get_parameter("strategy.search.vtheta_limit").as_double());
-    vyawLimit = std::min(std::fabs(vyawLimit), configuredVthetaLimit);
 
     // Continuous-spin mode (striker): spin the body on the spot with no time
     // limit while searching, mirroring the goalie's find-mode spin. The
@@ -3527,7 +3524,7 @@ NodeStatus RobotFindBall::onRunning()
         0.45,
         vxLimit,
         vyLimit,
-        configuredVthetaLimit,
+        vyawLimit,
         arrivalTolerance * 0.6,
         arrivalTolerance * 0.6,
         0.6,

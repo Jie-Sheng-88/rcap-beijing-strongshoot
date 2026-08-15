@@ -10,7 +10,7 @@
             <!-- Once the referee releases STOP, RobotFindBall moves into a safe observation area for an opponent goal kick or corner kick. -->
             <Sequence _while="!(ball_location_known || tm_ball_pos_reliable)">
                <CamFindBall />
-               <RobotFindBall vyaw_limit="0.8" continuous_spin="true" />
+                           <RobotFindBall continuous_spin="true" />
             </Sequence>
             <SetVelocity />
          </ReactiveSequence>
@@ -29,7 +29,7 @@
                         <StrikerDecide decision_out="{decision}" decision_in="{decision}" chase_threshold="1.0" />
                         <Sequence _while="decision=='find'">
                            <CamFindBall />
-                           <RobotFindBall vyaw_limit="0.8" continuous_spin="true" />
+               <RobotFindBall continuous_spin="true" />
                         </Sequence>
                      </ReactiveSequence>
                         <Assist _while="decision == 'assist'" vx_limit = "0.5" vy_limit="0.5" />
