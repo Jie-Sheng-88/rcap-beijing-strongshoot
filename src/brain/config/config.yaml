@@ -77,10 +77,10 @@ brain_node:
         ymax: 0.3
 
       power_shoot:
-        enable: false 
-        use_for_kickoff: false 
-        xmin: 1.1 
-        xmax: 1.5 
+        enable: true
+        use_for_kickoff: false
+        xmin: 0.6
+        xmax: 0.9
         ymin: -0.3 
         ymax: 0.3 
       enable_auto_visual_kick: true
@@ -160,7 +160,7 @@ brain_node:
       freekick_start_placing_safe_distance: 0.5 
       obstacle_memory_msecs: 500. 
       robot_obstacle_memory_msecs: 1000.0 # Short-term memory for detected robots
-      robot_confirm_frames: 2 # Require consecutive detections before obstacle avoidance
+      robot_confirm_framesf: 2 # Require consecutive detections before obstacle avoidance
       robot_match_distance: 0.7 # Cross-frame robot association distance (m)
       robot_merge_distance: 0.30 # Merge duplicate tracks that cannot be physically separate (m)
       robot_min_confidence: 40.0 # Detection confidence required for robot tracking (0-100)

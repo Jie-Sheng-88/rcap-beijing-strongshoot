@@ -2477,10 +2477,20 @@ NodeStatus StrikerDecide::tick() {
     const double SHOOT_Y_RANGE = 0.3;
     const double SHOOT_X_MAX = 0.6;
     const double SHOOT_X_MIN = 0.2;
-    const double STRONG_SHOOT_X_MIN = 1.0;
     bool shootPossible = angleGoodForShoot && fabs(ballY) < SHOOT_Y_RANGE && ballX < SHOOT_X_MAX && ballX > SHOOT_X_MIN;
     bool directionalKickPossible = angleGoodForDirectionalKick && fabs(ballY) < SHOOT_Y_RANGE && ballX < SHOOT_X_MAX && ballX > SHOOT_X_MIN;
-    bool useStrongShoot = shootPossible && fabs(ballX) > STRONG_SHOOT_X_MIN; // TODO now impossible to be true
+
+    double powerShootXMin, powerShootXMax, powerShootYMin, powerShootYMax;
+    brain->get_parameter("strategy.power_shoot.xmin", powerShootXMin);
+    brain->get_parameter("strategy.power_shoot.xmax", powerShootXMax);
+    brain->get_parameter("strategy.power_shoot.ymin", powerShootYMin);
+    brain->get_parameter("strategy.power_shoot.ymax", powerShootYMax);
+    const bool isKickoffSituation = brain->data->isKickingOff || brain->data->isFreekickKickingOff;
+    bool useStrongShoot = enablePowerShoot
+        && (!isKickoffSituation || usePowerShootForKickoff)
+        && angleGoodForShoot
+        && ballY > powerShootYMin && ballY < powerShootYMax
+        && ballX > powerShootXMin && ballX < powerShootXMax;
 
 
     bool avoidPushing;
@@ -2602,6 +2612,7 @@ NodeStatus StrikerDecide::tick() {
     {
         if (brain->data->kickType == "cross") newDecision = "cross";
         else if (plannedFreeKickActor) newDecision = "kick";
+        else if (useStrongShoot) newDecision = "power_shoot";
         else { // kickType == kick
             double threatThreshold;
             brain->get_parameter("strategy.shoot.threat_threshold", threatThreshold);
