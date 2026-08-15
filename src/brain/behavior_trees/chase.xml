@@ -10,7 +10,7 @@
                <Sequence _while="control_state==3" >
                   <Sequence _while="!ball_location_known" >
                      <PlaySound sound="search" />
-                     <RobotFindBall vyaw_limit="1.5" />
+                     <RobotFindBall />
                   </Sequence>
                   <Sequence _while="ball_location_known" >
                      <SimpleChase  stop_dist="1.0" stop_angle="0.3" />

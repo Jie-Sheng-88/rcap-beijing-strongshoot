@@ -214,7 +214,6 @@ public:
     RobotFindBall(const string &name, const NodeConfig &config, Brain *_brain) : StatefulActionNode(name, config), brain(_brain) {}
     static PortsList providedPorts() {
         return {
-            InputPort<double>("vyaw_limit", 1.0, ""),
             InputPort<bool>("continuous_spin", false, "")
         };
     }

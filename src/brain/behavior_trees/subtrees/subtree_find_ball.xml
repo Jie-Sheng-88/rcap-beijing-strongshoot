@@ -3,7 +3,7 @@
   <BehaviorTree ID="FindBall">
     <ReactiveSequence name="Distributed ball search">
       <CamFindBall />
-      <RobotFindBall vyaw_limit="0.8" />
+      <RobotFindBall />
     </ReactiveSequence>
   </BehaviorTree>
 </root>
