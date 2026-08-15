@@ -5,7 +5,7 @@ brain_node:
       player_id: 5 # 1 | 2 | 3 | 4 | 5
       field_type: "robo_league" # adult_size | kid_size | robo_league
         #player_role: "striker" # striker | goal_keeper
-      player_role: "goal_keeper" # striker | goal_keeper
+      player_role: "defender" # striker | goal_keeper | defender
       initial_goalkeeper_id: 1 # Normal-play fallback before valid GameController data; 0 means unassigned in a penalty shootout
       player_start_pos: "right" # right | left; used for entry-field localization
       treat_person_as_robot: false # Debug option. Keep false during official matches.
@@ -101,7 +101,7 @@ brain_node:
           auto_visual_kick_enable_angle: 1.2217304763960306
       defender:
         recovery_points_x: [-4.5, -4.5] # Own-half x coords, paired with recovery_points_y by index; one per defender slot (max 2 defenders)
-        recovery_points_y: [2.0, -2.0]
+        recovery_points_y: [0.5, -0.5]
         recovery_point_occupancy_radius: 1.0 # Skip a recovery point already claimed by a teammate within this radius, try the next-nearest instead
         recovery_position_tolerance: 1.0 # Within this distance of the chosen recovery point, considered "in recovery position"
         lost_ball_hold_secs: 1.5 # If ball goes unknown while chase/kick/adjust/auto_visual_kick was active, hold position this long before falling back to recover (avoids a wasted round-trip on brief vision blips)
