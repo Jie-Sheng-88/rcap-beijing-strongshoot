@@ -606,8 +606,8 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<bool>("strategy.cooperation.enable_role_switch", true);
     declare_parameter<double>("strategy.cooperation.ball_control_cost_threshold", 10.0);
     declare_parameter<double>("strategy.cooperation.goalie_claim_max_ball_range", 5.5);
-    declare_parameter<double>("strategy.cooperation.goalie_claim_extra_depth", 1.0);
-    declare_parameter<double>("strategy.cooperation.goalie_claim_lateral_margin", 0.5);
+    declare_parameter<double>("strategy.cooperation.goalie_claim_extra_depth", 0.0);
+    declare_parameter<double>("strategy.cooperation.goalie_claim_lateral_margin", 0.0);
     declare_parameter<double>("strategy.cooperation.goalie_box_priority_bonus", 5.0);
     declare_parameter<double>("strategy.cooperation.goalie_restore_stable_ms", 500.0);
     declare_parameter<double>("strategy.cooperation.tactical_packet_timeout_ms", 600.0);
