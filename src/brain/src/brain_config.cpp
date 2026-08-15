@@ -231,10 +231,10 @@ void BrainConfig::handle()
         throw invalid_argument("player_start_pos must be one of [left, right]. Got: " + playerStartPos);
     }
 
-    // playerRole [striker, goal_keeper]
-    if (playerRole != "striker" && playerRole != "goal_keeper")
+    // playerRole [striker, goal_keeper, defender]
+    if (playerRole != "striker" && playerRole != "goal_keeper" && playerRole != "defender")
     {
-        throw invalid_argument("player_role must be one of [striker, goal_keeper]. Got: " + playerRole);
+        throw invalid_argument("player_role must be one of [striker, goal_keeper, defender]. Got: " + playerRole);
     }
 
     // The v20 protocol encodes team and player identifiers as uint8_t.

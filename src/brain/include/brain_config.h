@@ -25,7 +25,7 @@ public:
     int teamId;                 // game.team_id
     int playerId;               // game.player_id
     string fieldType;           // game.field_type: "adult_size" (14x9) or "kid_size" (9x6)
-    string playerRole;          // game.player_role: "striker" or "goal_keeper"
+    string playerRole;          // game.player_role: "striker", "goal_keeper", or "defender"
     string playerStartPos;      // game.player_start_pos: "left" or "right" for entry localization
     
     double robotHeight;         // robot.robot_height in meters, used for distance estimation; tunable with SetParam

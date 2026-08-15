@@ -117,6 +117,66 @@ private:
     Brain *brain;
 };
 
+class DefenderDecide : public SyncActionNode
+{
+public:
+    DefenderDecide(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    static PortsList providedPorts() {
+        return {
+            InputPort<double>("chase_threshold", 1.0, "Kick instead of chase once ball.range is below this"),
+            InputPort<string>("decision_in", "", "Previous decision value"),
+            OutputPort<string>("decision_out"),
+        };
+    }
+    NodeStatus tick() override;
+private:
+    Brain *brain;
+    rclcpp::Time timeLastBallKnown;
+    // Latches true once the defender has reached its recovery point during
+    // the current "ball on our half" episode; reset when the ball leaves our
+    // half. Prevents re-triggering recover on every later vision blip.
+    bool hasRecoveredThisEpisode = false;
+};
+
+// Defense mode: walk to whichever configured strategy.defender.recovery_points_{x,y}
+// entry is nearest the ball and not already occupied by a teammate, and face the ball.
+class Recover : public SyncActionNode
+{
+public:
+    Recover(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    static PortsList providedPorts() {
+        return {
+            InputPort<double>("vx_limit", 1.2, ""),
+            InputPort<double>("vy_limit", 0.6, ""),
+            InputPort<double>("vtheta_limit", 1.5, ""),
+            InputPort<double>("dist_tolerance", 0.3, ""),
+        };
+    }
+    NodeStatus tick() override;
+private:
+    Brain *brain;
+};
+
+// Attack mode: trail the ball by standoff_dist on our side of the halfway line,
+// facing the ball. A standalone approximation of "support the striker" that does
+// not touch the striker-only cooperative assist-slot machinery (see Assist).
+class Support : public SyncActionNode
+{
+public:
+    Support(const string &name, const NodeConfig &config, Brain *_brain) : SyncActionNode(name, config), brain(_brain) {}
+    static PortsList providedPorts() {
+        return {
+            InputPort<double>("standoff_dist", 3.0, ""),
+            InputPort<double>("vx_limit", 1.0, ""),
+            InputPort<double>("vy_limit", 0.6, ""),
+            InputPort<double>("vtheta_limit", 1.5, ""),
+        };
+    }
+    NodeStatus tick() override;
+private:
+    Brain *brain;
+};
+
 class CamTrackBall : public SyncActionNode
 {
 public:

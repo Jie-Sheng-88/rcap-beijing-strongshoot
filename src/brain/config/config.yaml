@@ -97,8 +97,18 @@ brain_node:
         penalty_box: # Ball inside the penalty box but outside the goal box
           enable_auto_visual_kick: true
           auto_visual_kick_enable_dist_min: 0.2
-          auto_visual_kick_enable_dist_max: 0.3
+          auto_visual_kick_enable_dist_max: 4.0
           auto_visual_kick_enable_angle: 1.2217304763960306
+      defender:
+        recovery_points_x: [-4.5, -4.5] # Own-half x coords, paired with recovery_points_y by index; one per defender slot (max 2 defenders)
+        recovery_points_y: [2.0, -2.0]
+        recovery_point_occupancy_radius: 1.0 # Skip a recovery point already claimed by a teammate within this radius, try the next-nearest instead
+        recovery_position_tolerance: 1.0 # Within this distance of the chosen recovery point, considered "in recovery position"
+        lost_ball_hold_secs: 1.5 # If ball goes unknown while chase/kick/adjust/auto_visual_kick was active, hold position this long before falling back to recover (avoids a wasted round-trip on brief vision blips)
+        enable_auto_visual_kick: true # Defender-only override; StrikerDecide/GoalieDecide keep reading their own strategy.auto_visual_kick_* / strategy.goalie_visual_kick.* keys
+        auto_visual_kick_enable_dist_min: 0.2
+        auto_visual_kick_enable_dist_max: 4.0
+        auto_visual_kick_enable_angle: 1.2217304763960306
       freekick:
         execution_timeout_ms: 10000.0 # Team-wide timeout from free-kick release to completion
         plan_select_ms: 250.0 # Wait for several tactical packets after STOP before freezing the authoritative plan

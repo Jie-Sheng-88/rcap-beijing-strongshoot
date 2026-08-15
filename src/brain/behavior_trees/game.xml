@@ -4,6 +4,7 @@
     <include path="./subtrees/subtree_cam_find_and_track_ball.xml" />
     <include path="./subtrees/subtree_striker_play.xml" />
     <include path="./subtrees/subtree_goal_keeper_play.xml" />
+    <include path="./subtrees/subtree_defender_play.xml" />
     <include path="./subtrees/subtree_locate.xml" />
     <include path="./subtrees/subtree_auto_standup_and_locate.xml" />
     <BehaviorTree ID="MainTree">
@@ -62,6 +63,7 @@
                         <ReactiveSequence _while="gc_game_state=='PLAY'" name="Play">
                             <SubTree ID="StrikerPlay" _autoremap="true" _while="player_role == 'striker'" />
                             <SubTree ID="GoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
+                            <SubTree ID="DefenderPlay" _autoremap="true" _while="player_role == 'defender'" />
                         </ReactiveSequence>
 
                         <ReactiveSequence _while="gc_game_state=='END'" name="Match ended">
@@ -84,6 +86,7 @@
                             <ReactiveSequence _while="!freekick_plan_unavailable">
                                 <SubTree ID="StrikerPlay" _autoremap="true" _while="player_role == 'striker'" />
                                 <SubTree ID="GoalKeeperPlay" _autoremap="true" _while="player_role == 'goal_keeper'" />
+                                <SubTree ID="DefenderPlay" _autoremap="true" _while="player_role == 'defender'" />
                             </ReactiveSequence>
                         </ReactiveSequence>
                     </ReactiveSequence>

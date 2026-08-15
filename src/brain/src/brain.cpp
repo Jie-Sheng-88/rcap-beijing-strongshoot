@@ -592,6 +592,16 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_dist_min", 0.2);
     declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.goalie_visual_kick.penalty_box.auto_visual_kick_enable_angle", 1.2217304763960306);
+    // Defender recovery points: parallel flat arrays (x[i], y[i]) since ROS2 params don't nest.
+    declare_parameter<std::vector<double>>("strategy.defender.recovery_points_x", {});
+    declare_parameter<std::vector<double>>("strategy.defender.recovery_points_y", {});
+    declare_parameter<double>("strategy.defender.recovery_point_occupancy_radius", 1.0);
+    declare_parameter<double>("strategy.defender.recovery_position_tolerance", 1.0);
+    declare_parameter<double>("strategy.defender.lost_ball_hold_secs", 1.5);
+    declare_parameter<bool>("strategy.defender.enable_auto_visual_kick", true);
+    declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_min", 0.2);
+    declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_max", 4.0);
+    declare_parameter<double>("strategy.defender.auto_visual_kick_enable_angle", 1.2217304763960306);
     declare_parameter<bool>("strategy.power_shoot.enable", false);
     declare_parameter<bool>("strategy.power_shoot.use_for_kickoff", false);
     declare_parameter<double>("strategy.power_shoot.xmin", 0.5);

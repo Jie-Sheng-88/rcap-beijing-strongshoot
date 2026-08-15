@@ -108,7 +108,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'role',
             default_value='',
-            description='Override game.player_role from config.yaml, for example role:=striker.'
+            description='Override game.player_role from config.yaml, for example role:=striker. One of striker, goal_keeper, defender.'
         ),
         DeclareLaunchArgument(
             'sim',
