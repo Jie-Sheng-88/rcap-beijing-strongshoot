@@ -2903,8 +2903,8 @@ NodeStatus DefenderDecide::tick() {
                 !loseBall &&
                 ballRange < distMax &&
                 ballRange > distMin &&
-                fabs(ballYaw) < angleMax &&
-                fabs(bodyDeltaDir) < goalAngleMax
+                fabs(ballYaw) < angleMax 
+                //&& fabs(bodyDeltaDir) < goalAngleMax
             ) {
                 decision = "auto_visual_kick";
                 brain->data->tmImInVisualKick = true;
@@ -5478,6 +5478,24 @@ NodeStatus GoToReadyPosition::tick()
     double vthetaLimit = 1.5;
     bool avoidObstacle = true;
 
+    // READY-state starting formation: strategy.formation.* parallel arrays,
+    // index [starting_formation-1]. Falls back to the pre-formation hardcoded
+    // defaults (passed per-call below) when a given array is empty, so an
+    // unconfigured install behaves exactly as it always has. Unrelated to
+    // strategy.defender.kickoff_spot_*/cdm_* (live-play attack-phase holding
+    // lines, a different tactical moment, deliberately not shared with this).
+    int startingFormation = 1;
+    brain->get_parameter("strategy.formation.starting_formation", startingFormation);
+    const int formationIdx = std::max(0, startingFormation - 1);
+    const auto formationCoord = [&](const string &paramName, double fallback) {
+        std::vector<double> values;
+        brain->get_parameter(paramName, values);
+        if (values.empty()) return fallback;
+        size_t idx = static_cast<size_t>(std::clamp(
+            formationIdx, 0, static_cast<int>(values.size()) - 1));
+        return values[idx];
+    };
+
     if (role == "striker") {
         const double ownGoalX = -fd.length / 2.0;
         const double safePenaltyFront = ownGoalX +
@@ -5494,12 +5512,18 @@ NodeStatus GoToReadyPosition::tick()
         };
 
         if (selectedRank == 0) {
-            tx = safeX(isKickoff ? -fd.circleRadius : -fd.circleRadius * 2.0);
-            ty = 0.0;
+            double baseX = formationCoord(
+                "strategy.formation.striker_main_x", -fd.circleRadius);
+            tx = safeX(isKickoff ? baseX : baseX - fd.circleRadius);
+            ty = safeY(formationCoord("strategy.formation.striker_main_y", 0.0));
         } else if (selectedRank == 1) {
-            tx = safeX(isKickoff ? -fd.circleRadius : -fd.circleRadius * 2.0);
-            ty = safeY(-1.5);
+            double baseX = formationCoord(
+                "strategy.formation.striker_assist_x", -fd.circleRadius);
+            tx = safeX(isKickoff ? baseX : baseX - fd.circleRadius);
+            ty = safeY(formationCoord("strategy.formation.striker_assist_y", -1.5));
         } else if (selectedRank == 2) {
+            // Deep slots aren't part of any formation config -- only the
+            // main/assist (rank 0/1) pair is defined by strategy.formation.*.
             // Leave a robot-radius margin in front of the own penalty line.
             tx = safeX(ownGoalX + fd.penaltyAreaLength + 0.4);
             ty = safeY(fd.circleRadius);
@@ -5509,7 +5533,8 @@ NodeStatus GoToReadyPosition::tick()
         }
     } else if (role == "goal_keeper") {
         // Match the normal blocking line (1 m from the goal line) while
-        // remaining inside the goal area during READY.
+        // remaining inside the goal area during READY. Not part of the
+        // formation config -- unaffected by starting_formation.
         tx = -fd.length / 2.0 + std::clamp(
             0.5 * fd.goalAreaLength,
             0.4,
@@ -5517,17 +5542,16 @@ NodeStatus GoToReadyPosition::tick()
         ty = 0;
         ttheta = 0;
     } else if (role == "defender") {
-        // Same kickoff-spot config the live "kickoff_spot" decision uses
-        // (brain_tree.cpp KickoffSpot::tick()), so READY and in-play targets
-        // never drift out of sync. Both defenders would otherwise compute
-        // the identical point here (unlike live play, READY has no
-        // ball-distance signal to separate them) -- offset by a small fixed
-        // margin using isMainDefender()'s tie-break as a stable split.
-        double kickoffX = -1.99, kickoffY = 0.0;
-        brain->get_parameter("strategy.defender.kickoff_spot_x", kickoffX);
-        brain->get_parameter("strategy.defender.kickoff_spot_y", kickoffY);
-        tx = kickoffX;
-        ty = brain->isMainDefender() ? kickoffY + 1.5 : kickoffY - 1.5;
+        bool isMain = brain->isMainDefender();
+        double baseX = formationCoord(
+            isMain ? "strategy.formation.defender_main_x"
+                   : "strategy.formation.defender_assist_x",
+            -fd.length / 2.0 + fd.penaltyDist);
+        tx = isKickoff ? baseX : baseX - fd.circleRadius;
+        ty = formationCoord(
+            isMain ? "strategy.formation.defender_main_y"
+                   : "strategy.formation.defender_assist_y",
+            0.0);
     }
 
     brain->client->moveToPoseOnField2(tx, ty, ttheta, longRangeThreshold, turnThreshold, vxLimit, vyLimit, vthetaLimit, distTolerance / 1.5, distTolerance / 1.5, thetaTolerance, avoidObstacle);

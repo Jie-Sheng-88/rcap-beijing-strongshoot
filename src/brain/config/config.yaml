@@ -109,6 +109,16 @@ brain_node:
         auto_visual_kick_enable_dist_min: 0.5 # Matches StrikerDecide's shared strategy.auto_visual_kick_enable_dist_min
         auto_visual_kick_enable_dist_max: 4.0
         auto_visual_kick_enable_angle: 1.2217304763960306
+      formation: # READY-state starting positions only -- unrelated to strategy.defender.kickoff_spot_*/cdm_* above, which are live-play attack-phase holding lines
+        starting_formation: 1 # 1-indexed; selects index [starting_formation-1] from every array below. Add a formation by appending one element to each array, no code change needed.
+        striker_main_x: [-1.99] # Formation 1 "1-3-1": lone striker up front
+        striker_main_y: [0.0]
+        striker_assist_x: [-3.98] # Back-three line alongside both defenders
+        striker_assist_y: [1.5]
+        defender_main_x: [-3.98]
+        defender_main_y: [0.0]
+        defender_assist_x: [-3.98]
+        defender_assist_y: [-1.5]
       freekick:
         execution_timeout_ms: 10000.0 # Team-wide timeout from free-kick release to completion
         plan_select_ms: 250.0 # Wait for several tactical packets after STOP before freezing the authoritative plan

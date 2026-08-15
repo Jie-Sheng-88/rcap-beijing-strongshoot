@@ -602,6 +602,18 @@ Brain::Brain() : rclcpp::Node("brain_node")
     declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_min", 0.5);
     declare_parameter<double>("strategy.defender.auto_visual_kick_enable_dist_max", 4.0);
     declare_parameter<double>("strategy.defender.auto_visual_kick_enable_angle", 1.2217304763960306);
+    // READY-state starting formation: parallel arrays, index [starting_formation-1].
+    // Add a new formation by appending one element to each array below -- no
+    // declare_parameter needed per formation, only per new array (i.e. per new slot).
+    declare_parameter<int>("strategy.formation.starting_formation", 1);
+    declare_parameter<std::vector<double>>("strategy.formation.striker_main_x", {});
+    declare_parameter<std::vector<double>>("strategy.formation.striker_main_y", {});
+    declare_parameter<std::vector<double>>("strategy.formation.striker_assist_x", {});
+    declare_parameter<std::vector<double>>("strategy.formation.striker_assist_y", {});
+    declare_parameter<std::vector<double>>("strategy.formation.defender_main_x", {});
+    declare_parameter<std::vector<double>>("strategy.formation.defender_main_y", {});
+    declare_parameter<std::vector<double>>("strategy.formation.defender_assist_x", {});
+    declare_parameter<std::vector<double>>("strategy.formation.defender_assist_y", {});
     declare_parameter<bool>("strategy.power_shoot.enable", false);
     declare_parameter<bool>("strategy.power_shoot.use_for_kickoff", false);
     declare_parameter<double>("strategy.power_shoot.xmin", 0.5);
@@ -2788,7 +2800,8 @@ void Brain::handleCooperation() {
                 playerId == assignedGoalkeeperId) {
                 continue;
             }
-            if (teamStatuses[playerId - 1].role == "goal_keeper") continue;
+            if (teamStatuses[playerId - 1].role == "goal_keeper" ||
+                teamStatuses[playerId - 1].role == "defender") continue;
             ++myStrikerIDRank;
         }
     }
