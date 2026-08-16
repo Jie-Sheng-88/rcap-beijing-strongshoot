@@ -44,7 +44,8 @@ void checkSampledGeometry(const policy::Field &field)
                      assistCount <= 4;
                      ++assistCount) {
                     const auto targets = policy::calculateTargets(
-                        assistCount, {ballX, ballY}, side, field);
+                        assistCount, {ballX, ballY}, {ballX, ballY}, side,
+                        field);
                     const auto slots = activeSlots(assistCount);
                     for (std::size_t i = 0; i < assistCount; ++i) {
                         const auto &target = targets[slots[i]];
@@ -84,7 +85,7 @@ void checkThreeAssistGeometry(const policy::Field &field)
     for (const auto &ball : balls) {
         for (int side : {-1, 1}) {
             const auto targets = policy::calculateTargets(
-                3, ball, side, field);
+                3, ball, ball, side, field);
             const std::array<policy::Slot, 3> slots{
                 policy::COVER_MID,
                 policy::SHADOW_SUPPORT,
@@ -123,7 +124,7 @@ void checkThreeAssistGeometry(const policy::Field &field)
 
     const policy::Point midfieldBall{0.0, 0.0};
     const auto rawAnchor = policy::rawSlotTarget(
-        policy::ANCHOR_COVER, midfieldBall, 1, field);
+        policy::ANCHOR_COVER, midfieldBall, midfieldBall, 1, field);
     const double anchorDepth = policy::norm(
         rawAnchor - policy::Point{ownGoalX, 0.0});
     const double expectedDepth = std::max(

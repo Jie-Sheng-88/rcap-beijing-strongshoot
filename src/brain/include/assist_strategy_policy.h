@@ -155,8 +155,8 @@ inline int preferredShadowSide(const Point &ball, double leaderKickDir,
     return leaderId % 2 == 0 ? 1 : -1;
 }
 
-inline Point rawSlotTarget(Slot slot, const Point &ball, int shadowSide,
-                           const Field &field)
+inline Point rawSlotTarget(Slot slot, const Point &ball, const Point &leader,
+                           int shadowSide, const Field &field)
 {
     const double ownGoalX = -field.length / 2.0;
     const Point ownGoal{ownGoalX, 0.0};
@@ -165,25 +165,13 @@ inline Point rawSlotTarget(Slot slot, const Point &ball, int shadowSide,
     Point target{ownGoalX + field.goalAreaLength + 0.3, 0.0};
 
     if (slot == COVER_MID) {
-        const Point guardedGoal{
-            ownGoalX,
-            std::clamp(ball.y, -0.084 * field.width, 0.084 * field.width),
-        };
-        const Point guardedToBall = ball - guardedGoal;
-        const double guardedDistance = norm(guardedToBall);
-        const double progress = std::clamp(
-            (ball.x + 0.5 * field.length) / (0.722222 * field.length),
-            0.0,
-            1.0);
-        const double ballGap = field.length *
-            (0.194444 + 0.055556 * progress);
-        const double depth = std::clamp(
-            guardedDistance - ballGap,
-            field.goalAreaLength,
-            0.5 * field.length);
-        target = guardedGoal + normalizedOr(guardedToBall) * depth;
-        target.y = std::clamp(
-            target.y, -0.224 * field.width, 0.224 * field.width);
+        // Stand a fixed distance behind the leader, on the leader-to-ball
+        // line, and stay near the field's center line laterally.
+        constexpr double standoffDistance = 2.0;
+        constexpr double centerlineMaxY = 3.0;
+        const Point leaderToBall = normalizedOr(ball - leader, goalToBall);
+        target = leader - leaderToBall * standoffDistance;
+        target.y = std::clamp(target.y, -centerlineMaxY, centerlineMaxY);
     } else if (slot == SHADOW_SUPPORT) {
         target = rawShadowTarget(ball, shadowSide, field);
     } else if (slot == ANCHOR_COVER) {
@@ -277,18 +265,19 @@ inline Point nearestSeparatedTarget(
 }
 
 inline Targets calculateTargets(std::size_t assistCount, const Point &ball,
-                                int shadowSide, const Field &field)
+                                const Point &leader, int shadowSide,
+                                const Field &field)
 {
     Targets targets{};
     targets[COVER_MID] = rawSlotTarget(
-        COVER_MID, ball, shadowSide, field);
+        COVER_MID, ball, leader, shadowSide, field);
     targets[SHADOW_SUPPORT] = rawSlotTarget(
-        SHADOW_SUPPORT, ball, shadowSide, field);
+        SHADOW_SUPPORT, ball, leader, shadowSide, field);
     targets[ANCHOR_COVER] = rawSlotTarget(
-        ANCHOR_COVER, ball, shadowSide, field);
+        ANCHOR_COVER, ball, leader, shadowSide, field);
     targets[WIDE_OUTLET] = rawSlotTarget(
-        WIDE_OUTLET, ball, shadowSide, field);
-
+        WIDE_OUTLET, ball, leader, shadowSide, field);
+        
     if (assistCount == 0) return targets;
 
     std::array<Point, 4> placed{};

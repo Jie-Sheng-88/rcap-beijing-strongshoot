@@ -315,6 +315,7 @@ int preferredShadowSide(const Point &ball, double leaderKickDir, int leaderId,
 }
 
 Pose2D calculateAssistSlotTarget(AssistSlot slot, const Point &ball,
+                                 const Pose2D &leaderPose,
                                  double leaderKickDir, int leaderId,
                                  int shadowSideOverride,
                                  size_t assistCount,
@@ -326,6 +327,7 @@ Pose2D calculateAssistSlotTarget(AssistSlot slot, const Point &ball,
     const auto targets = assist_strategy_policy::calculateTargets(
         assistCount,
         {ball.x, ball.y},
+        {leaderPose.x, leaderPose.y},
         shadowSide,
         {
             field.length,
@@ -424,7 +426,7 @@ std::array<AssistSlot, MAX_NUM_PLAYERS> calculateAssistAssignments(
             const int playerId = assignedIds[i];
             const AssistSlot slot = permutation[i];
             const Pose2D target = calculateAssistSlotTarget(
-                slot, ball, leaderKickDir, newOwnerId,
+                slot, ball, leaderPose, leaderKickDir, newOwnerId,
                 formationShadowSide, assistantIds.size(), field);
             targets.push_back(target);
             const double walkingTime = estimateAssistWalkingTime(
@@ -3221,6 +3223,7 @@ void Brain::handleCooperation() {
             const Pose2D slotTarget = calculateAssistSlotTarget(
                 data->tmMyAssistSlot,
                 formationBall,
+                leaderPose,
                 leaderKickDir,
                 data->tmBallOwnerId,
                 data->tmFormationShadowSide,
@@ -3245,6 +3248,7 @@ void Brain::handleCooperation() {
         Pose2D candidateTarget = calculateAssistSlotTarget(
             data->tmMyAssistSlot,
             formationBall,
+            leaderPose,
             leaderKickDir,
             data->tmBallOwnerId,
             data->tmFormationShadowSide,
